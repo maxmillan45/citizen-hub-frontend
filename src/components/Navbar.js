@@ -8,5 +8,4 @@ function Navbar({ onMenuClick }) {
     </button>
   );
 }
-
 export default Navbar;
