@@ -1,309 +1,347 @@
 import React, { useState } from 'react';
 import { searchConstitution, getArticle } from '../services/api';
-import { FiSearch, FiBookOpen, FiChevronRight, FiFileText, FiInfo } from 'react-icons/fi';
+import { FiSearch, FiBook, FiArrowLeft, FiRefreshCw, FiFileText, FiInfo, FiGlobe } from 'react-icons/fi';
 
-function ConstitutionSearch() {
+function Constitution() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [searchPerformed, setSearchPerformed] = useState(false);
+  const [showSimplified, setShowSimplified] = useState(true);
+  const [language, setLanguage] = useState('english'); // 'english' or 'swahili'
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
+  const handleSearch = async () => {
+    if (!query.trim()) {
+      setError('Please enter a search term');
+      return;
+    }
+    
     setLoading(true);
+    setError(null);
+    setSelectedArticle(null);
     setSearchPerformed(true);
+    
     try {
       const response = await searchConstitution(query);
-      setResults(response.data);
-      setSelectedArticle(null);
+      const data = response.data;
+      const articlesArray = data.results || [];
+      setResults(articlesArray);
+      
+      if (articlesArray.length === 0) {
+        setError('No articles found matching your search.');
+      }
     } catch (err) {
       console.error('Search failed:', err);
+      setError('Failed to search the constitution. Please try again.');
+      setResults([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleViewArticle = async (articleNumber) => {
+  const handleViewArticle = async (number) => {
     setLoading(true);
+    setError(null);
     try {
-      const response = await getArticle(articleNumber);
+      const response = await getArticle(number);
       setSelectedArticle(response.data);
     } catch (err) {
-      console.error('Failed to fetch article:', err);
+      console.error('Failed to load article:', err);
+      setError('Failed to load article. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Load all articles on page load
-  React.useEffect(() => {
-    loadAllArticles();
-  }, []);
-
-  const loadAllArticles = async () => {
-    setLoading(true);
-    try {
-      const response = await searchConstitution('');
-      setResults(response.data);
-    } catch (err) {
-      console.error('Failed to load articles:', err);
-    } finally {
-      setLoading(false);
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSearch();
     }
   };
+
+  const getTopicLabel = (topic) => {
+    const topics = {
+      'rights': 'Rights & Freedoms',
+      'land': 'Land & Property',
+      'government': 'Government',
+      'citizenship': 'Citizenship',
+      'other': 'General'
+    };
+    return topics[topic] || topic;
+  };
+
+  const getTopicColor = (topic) => {
+    const colors = {
+      'rights': '#006B3F',
+      'land': '#D4A017',
+      'government': '#1A1A1A',
+      'citizenship': '#BB0000',
+      'other': '#6c757d'
+    };
+    return colors[topic] || '#6c757d';
+  };
+
+  const getDisplayText = (article) => {
+    if (showSimplified) {
+      if (language === 'swahili' && article.simplified_swahili) {
+        return article.simplified_swahili;
+      }
+      if (article.simplified_english) {
+        return article.simplified_english;
+      }
+    }
+    return article.full_text || article.content || 'Content not available';
+  };
+
+  const getTitle = (article) => {
+    if (showSimplified) {
+      if (language === 'swahili') {
+        return article.title_swahili || article.title || `Kifungu ${article.article_number}`;
+      }
+      return article.title || `Article ${article.article_number}`;
+    }
+    return article.title || `Article ${article.article_number}`;
+  };
+
+  if (selectedArticle) {
+    return (
+      <div className="container" style={{ paddingTop: '48px', paddingBottom: '48px' }}>
+        <button 
+          onClick={() => setSelectedArticle(null)} 
+          className="btn-outline" 
+          style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px', cursor: 'pointer' }}
+        >
+          <FiArrowLeft size={16} />
+          Back to results
+        </button>
+        
+        <div className="card" style={{ padding: '32px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+            <div>
+              <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#1A1A1A', margin: 0 }}>
+                {showSimplified ? `Article ${selectedArticle.article_number} (Simplified)` : `Article ${selectedArticle.article_number}`}
+              </h1>
+              {selectedArticle.title && (
+                <h3 style={{ fontSize: '16px', fontWeight: '400', color: '#6c757d', marginTop: '4px' }}>
+                  {selectedArticle.title}
+                </h3>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {selectedArticle.topic && (
+                <span style={{
+                  display: 'inline-block',
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  backgroundColor: getTopicColor(selectedArticle.topic),
+                  color: 'white',
+                  fontSize: '12px',
+                  fontWeight: '500'
+                }}>
+                  {getTopicLabel(selectedArticle.topic)}
+                </span>
+              )}
+              <button
+                onClick={() => setShowSimplified(!showSimplified)}
+                className="btn-outline"
+                style={{ padding: '4px 12px', fontSize: '12px', cursor: 'pointer' }}
+              >
+                {showSimplified ? 'Show Full Text' : 'Show Simplified'}
+              </button>
+              {showSimplified && (
+                <button
+                  onClick={() => setLanguage(language === 'english' ? 'swahili' : 'english')}
+                  className="btn-outline"
+                  style={{ padding: '4px 12px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <FiGlobe size={14} />
+                  {language === 'english' ? 'English' : 'Kiswahili'}
+                </button>
+              )}
+            </div>
+          </div>
+          
+          <div style={{ 
+            lineHeight: '1.8', 
+            color: '#212529',
+            whiteSpace: 'pre-wrap',
+            padding: '16px',
+            backgroundColor: showSimplified ? '#E8F5E9' : 'transparent',
+            borderRadius: '8px'
+          }}>
+            {getDisplayText(selectedArticle)}
+          </div>
+          
+          {selectedArticle.chapter && (
+            <div style={{ 
+              marginTop: '24px', 
+              padding: '16px', 
+              backgroundColor: '#F8F9FA', 
+              borderRadius: '8px',
+              fontSize: '14px',
+              color: '#6c757d'
+            }}>
+              <strong>Chapter:</strong> {selectedArticle.chapter}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container" style={{ paddingTop: '48px', paddingBottom: '48px' }}>
-      {/* Header Section */}
       <div style={{ marginBottom: '40px' }}>
-        <h1 className="heading-1" style={{ marginBottom: '12px' }}>The Constitution of Kenya</h1>
-        <p className="text-muted" style={{ fontSize: '16px' }}>Explore the supreme law of Kenya (2010) with simplified explanations</p>
+        <h1 className="heading-1" style={{ marginBottom: '12px' }}>Constitution of Kenya 2010</h1>
+        <p className="text-muted" style={{ fontSize: '16px' }}>
+          Search and browse the Kenyan Constitution in English or Kiswahili
+        </p>
       </div>
 
-      {/* Search Bar */}
       <div style={{ 
         background: 'white', 
         borderRadius: '12px', 
         padding: '24px', 
         marginBottom: '32px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        border: '1px solid #f0f0f0'
       }}>
-        <form onSubmit={handleSearch} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, position: 'relative' }}>
-            <FiSearch style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#999' }} />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
+          <div style={{ flex: '1', minWidth: '200px', position: 'relative' }}>
+            <FiSearch style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#adb5bd' }} />
             <input
               type="text"
-              className="input-field"
-              style={{ paddingLeft: '44px' }}
-              placeholder="Search by keyword, article number, or topic..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Search by keyword, topic, or article number..."
+              style={{
+                width: '100%',
+                padding: '12px 12px 12px 40px',
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                fontSize: '14px'
+              }}
             />
           </div>
-          <button type="submit" className="btn-primary" disabled={loading} style={{ minWidth: '120px' }}>
-            {loading ? 'Searching...' : 'Search'}
+          <button 
+            onClick={handleSearch} 
+            disabled={loading} 
+            className="btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px' }}
+          >
+            {loading ? 'Searching...' : <><FiSearch size={16} /> Search</>}
           </button>
-        </form>
-        {searchPerformed && results.length === 0 && !loading && (
-          <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#FFF8E7', borderRadius: '8px', color: '#856404' }}>
-            No articles found. Try searching for "rights", "arrest", "privacy", or "property"
-          </div>
-        )}
+        </div>
       </div>
 
-      {/* Results and Content Area */}
-      <div className="grid" style={{ gridTemplateColumns: '1fr 2fr', gap: '32px' }}>
-        {/* Results Panel */}
+      {error && (
         <div style={{ 
-          background: 'white', 
+          background: '#FFEBEE', 
           borderRadius: '12px', 
-          overflow: 'hidden',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-          border: '1px solid #f0f0f0'
+          padding: '16px 20px', 
+          marginBottom: '24px',
+          border: '1px solid #FFCDD2',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
         }}>
-          <div style={{ 
-            padding: '16px 20px', 
-            background: '#F8F9FA', 
-            borderBottom: '1px solid #e9ecef',
-            fontWeight: '600',
-            fontSize: '14px',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-            color: '#6c757d'
-          }}>
-            <FiFileText style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-            Articles ({results.length})
-          </div>
-          <div style={{ maxHeight: '550px', overflowY: 'auto' }}>
-            {loading && results.length === 0 ? (
-              <div style={{ padding: '40px', textAlign: 'center' }}>
-                <div className="loading-spinner" style={{ margin: '0 auto 16px' }}></div>
-                <p style={{ color: '#999' }}>Loading articles...</p>
-              </div>
-            ) : (
-              results.map((article) => (
-                <div
-                  key={article.id}
-                  onClick={() => handleViewArticle(article.article_number)}
-                  style={{
-                    padding: '16px 20px',
-                    borderBottom: '1px solid #f0f0f0',
-                    cursor: 'pointer',
-                    backgroundColor: selectedArticle?.id === article.id ? '#E8F5E9' : 'white',
-                    transition: 'all 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (selectedArticle?.id !== article.id) {
-                      e.currentTarget.style.backgroundColor = '#F8F9FA';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (selectedArticle?.id !== article.id) {
-                      e.currentTarget.style.backgroundColor = 'white';
-                    }
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <span style={{ 
-                        display: 'inline-block',
-                        padding: '2px 8px',
-                        backgroundColor: selectedArticle?.id === article.id ? '#006B3F' : '#E9ECEF',
-                        color: selectedArticle?.id === article.id ? 'white' : '#006B3F',
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        marginBottom: '8px'
-                      }}>
-                        Article {article.article_number}
-                      </span>
-                      <h3 style={{ 
-                        fontSize: '16px', 
-                        fontWeight: '600', 
-                        marginBottom: '4px',
-                        color: selectedArticle?.id === article.id ? '#006B3F' : '#212529'
-                      }}>
-                        {article.title}
-                      </h3>
-                      <p style={{ fontSize: '13px', color: '#6c757d', lineHeight: '1.4' }}>
-                        {article.full_text.substring(0, 100)}...
-                      </p>
-                    </div>
-                    <FiChevronRight style={{ color: '#adb5bd', marginTop: '4px' }} />
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+          <FiInfo size={18} color="#BB0000" />
+          <p style={{ color: '#BB0000', margin: 0 }}>{error}</p>
         </div>
+      )}
 
-        {/* Article Viewer Panel */}
+      {loading && (
+        <div style={{ textAlign: 'center', padding: '40px' }}>
+          <div className="loading-spinner" style={{ margin: '0 auto 20px' }}></div>
+          <p style={{ color: '#6c757d' }}>Loading articles...</p>
+        </div>
+      )}
+
+      {!loading && !error && searchPerformed && results.length === 0 && (
         <div style={{ 
           background: 'white', 
           borderRadius: '12px', 
-          overflow: 'hidden',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+          padding: '60px', 
+          textAlign: 'center',
           border: '1px solid #f0f0f0'
         }}>
-          {selectedArticle ? (
-            <>
-              <div style={{ 
-                padding: '20px 24px', 
-                background: 'linear-gradient(135deg, #006B3F 0%, #008C52 100%)',
-                color: 'white'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                  <FiBookOpen size={24} />
-                  <span style={{ fontSize: '14px', opacity: 0.9 }}>Constitution of Kenya</span>
-                </div>
-                <h2 style={{ fontSize: '28px', fontWeight: '700', marginBottom: '4px' }}>
-                  Article {selectedArticle.article_number}
-                </h2>
-                <p style={{ fontSize: '16px', opacity: 0.9 }}>{selectedArticle.title}</p>
-              </div>
-              
-              <div style={{ padding: '24px' }}>
-                {/* Full Text Section */}
-                <div style={{ marginBottom: '24px' }}>
-                  <h3 style={{ 
-                    fontSize: '14px', 
-                    fontWeight: '600', 
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    color: '#6c757d',
-                    marginBottom: '12px'
-                  }}>
-                    Full Text
-                  </h3>
-                  <div style={{ 
-                    padding: '20px', 
-                    backgroundColor: '#F8F9FA', 
-                    borderRadius: '8px',
-                    lineHeight: '1.8',
-                    fontSize: '15px',
-                    color: '#333'
-                  }}>
-                    {selectedArticle.full_text}
-                  </div>
-                </div>
+          <FiBook size={48} color="#dee2e6" style={{ marginBottom: '16px' }} />
+          <h3 style={{ fontSize: '18px', marginBottom: '8px', color: '#495057' }}>No articles found</h3>
+          <p style={{ color: '#6c757d' }}>Try a different search term</p>
+        </div>
+      )}
 
-                {/* Simplified Explanation Section */}
-                <div style={{ marginBottom: '24px' }}>
-                  <h3 style={{ 
-                    fontSize: '14px', 
-                    fontWeight: '600', 
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    color: '#6c757d',
-                    marginBottom: '12px'
-                  }}>
-                    <FiInfo style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                    Simplified Explanation
+      {!loading && !error && results.length > 0 && (
+        <div>
+          <div style={{ marginBottom: '16px' }}>
+            <p style={{ color: '#6c757d', fontSize: '14px' }}>
+              Found <strong style={{ color: '#006B3F' }}>{results.length}</strong> articles
+            </p>
+          </div>
+          <div className="grid grid-2" style={{ gap: '20px' }}>
+            {results.map((article) => (
+              <div 
+                key={article.id} 
+                className="card" 
+                onClick={() => handleViewArticle(article.article_number)} 
+                style={{ 
+                  cursor: 'pointer', 
+                  padding: '20px',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                  border: '1px solid #f0f0f0',
+                  borderRadius: '12px'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.08)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#006B3F' }}>
+                    Article {article.article_number}
                   </h3>
-                  <div style={{ 
-                    padding: '20px', 
-                    backgroundColor: '#E8F5E9', 
-                    borderRadius: '8px',
-                    lineHeight: '1.7',
-                    fontSize: '15px',
-                    color: '#1a3c2a',
-                    borderLeft: '4px solid #006B3F'
-                  }}>
-                    {selectedArticle.simplified_english}
-                  </div>
+                  {article.topic && (
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '2px 10px',
+                      borderRadius: '12px',
+                      backgroundColor: getTopicColor(article.topic),
+                      color: 'white',
+                      fontSize: '10px',
+                      fontWeight: '500',
+                      flexShrink: 0,
+                      marginLeft: '8px'
+                    }}>
+                      {getTopicLabel(article.topic)}
+                    </span>
+                  )}
                 </div>
-
-                {/* Swahili Version (if available) */}
-                {selectedArticle.simplified_swahili && (
-                  <div>
-                    <h3 style={{ 
-                      fontSize: '14px', 
-                      fontWeight: '600', 
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      color: '#6c757d',
-                      marginBottom: '12px'
-                    }}>
-                      Kiswahili
-                    </h3>
-                    <div style={{ 
-                      padding: '20px', 
-                      backgroundColor: '#FFF8E7', 
-                      borderRadius: '8px',
-                      lineHeight: '1.7',
-                      fontSize: '15px',
-                      color: '#5c431c',
-                      borderLeft: '4px solid #D4A017'
-                    }}>
-                      {selectedArticle.simplified_swahili}
-                    </div>
-                  </div>
+                <p style={{ fontSize: '14px', color: '#495057', margin: '8px 0 12px 0' }}>
+                  {article.title || `Article ${article.article_number}`}
+                </p>
+                {article.simplified_english && (
+                  <p style={{ fontSize: '13px', color: '#6c757d', margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {article.simplified_english.substring(0, 150)}...
+                  </p>
                 )}
+                <div style={{ marginTop: '12px', color: '#006B3F', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <FiFileText size={14} />
+                  Click to read full article
+                </div>
               </div>
-            </>
-          ) : (
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column',
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              padding: '60px 40px',
-              textAlign: 'center'
-            }}>
-              <FiBookOpen size={64} color="#dee2e6" style={{ marginBottom: '20px' }} />
-              <h3 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '8px', color: '#495057' }}>
-                Select an Article
-              </h3>
-              <p style={{ color: '#6c757d', maxWidth: '300px' }}>
-                Click on any article from the list to read its full text and simplified explanation
-              </p>
-            </div>
-          )}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
-export default ConstitutionSearch;
+export default Constitution;
