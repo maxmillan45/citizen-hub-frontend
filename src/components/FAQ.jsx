@@ -10,7 +10,6 @@ function FAQ() {
   const [openIndex, setOpenIndex] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
-  const [error, setError] = useState(null);
 
   const categories = [
     { value: 'all', label: 'All Questions', icon: FiHelpCircle, color: '#006B3F', count: 0 },
@@ -54,7 +53,6 @@ function FAQ() {
 
   const fetchFAQs = async () => {
     setLoading(true);
-    setError(null);
     try {
       const response = await getFAQs();
       // API returns: { count: X, results: [...] }
@@ -64,7 +62,6 @@ function FAQ() {
       setFilteredFaqs(faqsArray);
     } catch (err) {
       console.error('Failed to fetch FAQs:', err);
-      setError('Unable to load FAQs. Please try again.');
       setFaqs([]);
       setFilteredFaqs([]);
     } finally {
@@ -95,26 +92,6 @@ function FAQ() {
     };
     return labels[category] || category;
   };
-
-  if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '60px' }}>
-        <div className="loading-spinner" style={{ margin: '0 auto 20px' }}></div>
-        <p style={{ color: '#6c757d' }}>Loading frequently asked questions...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ background: '#FFEBEE', borderRadius: '12px', padding: '40px', textAlign: 'center' }}>
-        <p style={{ color: '#BB0000' }}>{error}</p>
-        <button onClick={fetchFAQs} className="btn-secondary" style={{ marginTop: '16px' }}>
-          Try Again
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="container" style={{ paddingTop: '48px', paddingBottom: '48px' }}>
@@ -249,7 +226,12 @@ function FAQ() {
         </div>
       )}
 
-      {filteredFaqs.length === 0 ? (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '60px' }}>
+          <div className="loading-spinner" style={{ margin: '0 auto 20px' }}></div>
+          <p style={{ color: '#6c757d' }}>Loading frequently asked questions...</p>
+        </div>
+      ) : filteredFaqs.length === 0 ? (
         <div style={{ 
           background: 'white', 
           borderRadius: '12px', 
