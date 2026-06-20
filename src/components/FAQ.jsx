@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getFAQs } from '../services/api';
-import { FiChevronDown, FiChevronUp, FiFilter, FiHelpCircle, FiSearch, FiX } from 'react-icons/fi';
+import { FiChevronDown, FiChevronUp, FiFilter, FiHelpCircle, FiSearch, FiX, FiRefreshCw } from 'react-icons/fi';
 
 function FAQ() {
   const [faqs, setFaqs] = useState([]);
@@ -9,6 +9,7 @@ function FAQ() {
   const [searchQuery, setSearchQuery] = useState('');
   const [openIndex, setOpenIndex] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
 
   const categories = [
@@ -28,6 +29,11 @@ function FAQ() {
   }, []);
 
   useEffect(() => {
+    if (!Array.isArray(faqs)) {
+      setFilteredFaqs([]);
+      return;
+    }
+    
     let filtered = faqs;
     
     if (selectedCategory !== 'all') {
@@ -35,9 +41,10 @@ function FAQ() {
     }
     
     if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
       filtered = filtered.filter(f => 
-        f.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        f.answer.toLowerCase().includes(searchQuery.toLowerCase())
+        (f.question && f.question.toLowerCase().includes(query)) ||
+        (f.answer && f.answer.toLowerCase().includes(query))
       );
     }
     
@@ -53,15 +60,51 @@ function FAQ() {
 
   const fetchFAQs = async () => {
     setLoading(true);
+    setError(null);
     try {
+      console.log('Fetching FAQs...');
       const response = await getFAQs();
-      // API returns: { count: X, results: [...] }
+      console.log('FAQ Response:', response);
+      
+      // Check if response exists
+      if (!response) {
+        throw new Error('No response from server');
+      }
+      
+      // Check if response.data exists
+      if (!response.data) {
+        throw new Error('No data in response');
+      }
+      
       const data = response.data;
-      const faqsArray = data.results || [];
+      console.log('FAQ Data:', data);
+      
+      // Extract results array
+      let faqsArray = [];
+      if (data.results && Array.isArray(data.results)) {
+        faqsArray = data.results;
+      } else if (Array.isArray(data)) {
+        faqsArray = data;
+      } else {
+        faqsArray = [];
+      }
+      
+      console.log('FAQs Array:', faqsArray);
+      console.log('Number of FAQs:', faqsArray.length);
+      
       setFaqs(faqsArray);
       setFilteredFaqs(faqsArray);
+      
+      // Update category counts
+      const updatedCategories = [...categories];
+      updatedCategories[0].count = faqsArray.length;
+      for (let i = 1; i < updatedCategories.length; i++) {
+        updatedCategories[i].count = faqsArray.filter(f => f.category === updatedCategories[i].value).length;
+      }
+      
     } catch (err) {
       console.error('Failed to fetch FAQs:', err);
+      setError('Unable to load FAQs. Please try again.');
       setFaqs([]);
       setFilteredFaqs([]);
     } finally {
@@ -92,6 +135,34 @@ function FAQ() {
     };
     return labels[category] || category;
   };
+
+  if (loading) {
+    return (
+      <div className="container" style={{ paddingTop: '48px', textAlign: 'center', paddingBottom: '60px' }}>
+        <div className="loading-spinner" style={{ margin: '0 auto 20px' }}></div>
+        <p style={{ color: '#6c757d' }}>Loading frequently asked questions...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container" style={{ paddingTop: '48px', paddingBottom: '60px' }}>
+        <div style={{ 
+          background: '#FFEBEE', 
+          borderRadius: '12px', 
+          padding: '40px', 
+          textAlign: 'center',
+          border: '1px solid #FFCDD2'
+        }}>
+          <p style={{ color: '#BB0000', marginBottom: '16px' }}>{error}</p>
+          <button onClick={fetchFAQs} className="btn-secondary" style={{ padding: '10px 24px', cursor: 'pointer' }}>
+            <FiRefreshCw size={16} style={{ marginRight: '8px' }} /> Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container" style={{ paddingTop: '48px', paddingBottom: '48px' }}>
@@ -226,12 +297,7 @@ function FAQ() {
         </div>
       )}
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px' }}>
-          <div className="loading-spinner" style={{ margin: '0 auto 20px' }}></div>
-          <p style={{ color: '#6c757d' }}>Loading frequently asked questions...</p>
-        </div>
-      ) : filteredFaqs.length === 0 ? (
+      {filteredFaqs.length === 0 ? (
         <div style={{ 
           background: 'white', 
           borderRadius: '12px', 
@@ -247,7 +313,7 @@ function FAQ() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {filteredFaqs.map((faq, index) => (
             <div 
-              key={faq.id} 
+              key={faq.id || index} 
               style={{ 
                 background: 'white', 
                 borderRadius: '12px', 
