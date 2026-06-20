@@ -16,12 +16,17 @@ function MPScorecard() {
   }, []);
 
   useEffect(() => {
+    if (!mps || mps.length === 0) {
+      setFilteredMps([]);
+      return;
+    }
+    
     let filtered = [...mps];
     
     if (searchTerm.trim()) {
       filtered = filtered.filter(mp => 
-        mp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        mp.constituency.toLowerCase().includes(searchTerm.toLowerCase())
+        mp.name && mp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        mp.constituency && mp.constituency.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     
@@ -37,14 +42,26 @@ function MPScorecard() {
     setError(null);
     try {
       const response = await getMPs();
+      // Check if response and response.data exist
+      if (!response || !response.data) {
+        throw new Error('Invalid response from server');
+      }
+      
       const data = response.data;
+      // Check if data has results array
       const mpsArray = data.results || [];
+      
+      // Ensure mpsArray is actually an array
+      if (!Array.isArray(mpsArray)) {
+        throw new Error('Expected array of MPs');
+      }
+      
       setMps(mpsArray);
       setFilteredMps(mpsArray);
       
       // Extract unique parties
-      const uniqueParties = [...new Set(mpsArray.map(mp => mp.party).filter(Boolean))];
-      setParties(['all', ...uniqueParties]);
+      const uniqueParties = ['all', ...new Set(mpsArray.map(mp => mp.party).filter(Boolean))];
+      setParties(uniqueParties);
     } catch (err) {
       console.error('Error fetching MPs:', err);
       setError('Unable to load Members of Parliament. Please try again.');
@@ -89,7 +106,7 @@ function MPScorecard() {
           border: '1px solid #FFCDD2'
         }}>
           <p style={{ color: '#BB0000', marginBottom: '16px' }}>{error}</p>
-          <button onClick={fetchMPs} className="btn-secondary">
+          <button onClick={fetchMPs} className="btn-secondary" style={{ padding: '10px 24px', cursor: 'pointer' }}>
             <FiRefreshCw size={16} style={{ marginRight: '8px' }} /> Try Again
           </button>
         </div>
@@ -182,7 +199,7 @@ function MPScorecard() {
         <div className="grid grid-3" style={{ gap: '24px' }}>
           {filteredMps.map((mp) => (
             <div 
-              key={mp.id} 
+              key={mp.id || Math.random()} 
               className="card"
               style={{ 
                 padding: '0',
@@ -210,7 +227,7 @@ function MPScorecard() {
                   </div>
                   <div>
                     <h3 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>
-                      {mp.name}
+                      {mp.name || 'Unknown'}
                     </h3>
                     <span style={{ 
                       display: 'inline-block',
@@ -229,7 +246,7 @@ function MPScorecard() {
               <div style={{ padding: '16px 20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#495057' }}>
                   <FiMapPin size={14} color="#6c757d" />
-                  <span style={{ fontSize: '14px' }}>{mp.constituency}</span>
+                  <span style={{ fontSize: '14px' }}>{mp.constituency || 'Unknown'}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6c757d' }}>
                   <FiFlag size={14} />
