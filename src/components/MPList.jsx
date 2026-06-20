@@ -34,6 +34,17 @@ function MPList() {
   }, []);
 
   useEffect(() => {
+    // Guard against non-array mps
+    if (!Array.isArray(mps)) {
+      setFilteredMps([]);
+      return;
+    }
+    
+    if (mps.length === 0) {
+      setFilteredMps([]);
+      return;
+    }
+    
     let filtered = [...mps];
     
     if (selectedParty !== 'all') {
@@ -42,15 +53,15 @@ function MPList() {
     
     if (selectedConstituency) {
       filtered = filtered.filter(mp => 
-        mp.constituency.toLowerCase().includes(selectedConstituency.toLowerCase())
+        mp.constituency && mp.constituency.toLowerCase().includes(selectedConstituency.toLowerCase())
       );
     }
     
     if (searchQuery) {
       filtered = filtered.filter(mp => 
-        mp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        mp.constituency.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        mp.party.toLowerCase().includes(searchQuery.toLowerCase())
+        (mp.name && mp.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (mp.constituency && mp.constituency.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (mp.party && mp.party.toLowerCase().includes(searchQuery.toLowerCase()))
       );
     }
     
@@ -62,10 +73,31 @@ function MPList() {
     setError(null);
     try {
       const response = await getMPs();
-      setMps(response.data);
-      setFilteredMps(response.data);
+      
+      // Validate response structure
+      if (!response || !response.data) {
+        throw new Error('Invalid response from server');
+      }
+      
+      const data = response.data;
+      
+      // Extract results array - handle both paginated and non-paginated responses
+      let mpsArray = [];
+      if (data.results && Array.isArray(data.results)) {
+        mpsArray = data.results;
+      } else if (Array.isArray(data)) {
+        mpsArray = data;
+      } else {
+        mpsArray = [];
+      }
+      
+      setMps(mpsArray);
+      setFilteredMps(mpsArray);
     } catch (err) {
+      console.error('Error fetching MPs:', err);
       setError('Unable to load MPs. Please try again later.');
+      setMps([]);
+      setFilteredMps([]);
     } finally {
       setLoading(false);
     }
@@ -102,6 +134,34 @@ function MPList() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="container" style={{ paddingTop: '48px', textAlign: 'center', paddingBottom: '60px' }}>
+        <div className="loading-spinner" style={{ margin: '0 auto 20px' }}></div>
+        <p style={{ color: '#6c757d' }}>Loading Members of Parliament...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container" style={{ paddingTop: '48px', paddingBottom: '60px' }}>
+        <div style={{ 
+          background: '#FFEBEE', 
+          borderRadius: '12px', 
+          padding: '40px', 
+          textAlign: 'center',
+          border: '1px solid #FFCDD2'
+        }}>
+          <p style={{ color: '#BB0000', marginBottom: '16px' }}>{error}</p>
+          <button onClick={fetchMPs} className="btn-secondary" style={{ padding: '10px 24px', cursor: 'pointer' }}>
+            <FiRefreshCw size={16} style={{ marginRight: '8px' }} /> Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container" style={{ paddingTop: '48px', paddingBottom: '48px' }}>
       {/* Header Section */}
@@ -128,7 +188,7 @@ function MPList() {
             <input
               type="text"
               className="input-field"
-              style={{ paddingLeft: '36px' }}
+              style={{ paddingLeft: '36px', width: '100%' }}
               placeholder="Search by name, constituency, or party..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -139,6 +199,7 @@ function MPList() {
           <div>
             <select
               className="input-field"
+              style={{ width: '100%' }}
               value={selectedParty}
               onChange={(e) => setSelectedParty(e.target.value)}
             >
@@ -153,6 +214,7 @@ function MPList() {
             <input
               type="text"
               className="input-field"
+              style={{ width: '100%' }}
               placeholder="Filter by constituency..."
               value={selectedConstituency}
               onChange={(e) => setSelectedConstituency(e.target.value)}
@@ -169,7 +231,7 @@ function MPList() {
                 setSearchQuery('');
               }}
               className="btn-outline"
-              style={{ padding: '6px 12px', fontSize: '12px' }}
+              style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}
             >
               Clear All Filters
             </button>
@@ -187,19 +249,7 @@ function MPList() {
       )}
 
       {/* MPs Grid */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px' }}>
-          <div className="loading-spinner" style={{ margin: '0 auto 20px' }}></div>
-          <p style={{ color: '#6c757d' }}>Loading Members of Parliament...</p>
-        </div>
-      ) : error ? (
-        <div style={{ background: '#FFEBEE', borderRadius: '12px', padding: '40px', textAlign: 'center', border: '1px solid #FFCDD2' }}>
-          <p style={{ color: '#BB0000', marginBottom: '16px' }}>{error}</p>
-          <button onClick={fetchMPs} className="btn-secondary">
-            <FiRefreshCw size={16} style={{ marginRight: '8px' }} /> Try Again
-          </button>
-        </div>
-      ) : filteredMps.length === 0 ? (
+      {filteredMps.length === 0 ? (
         <div style={{ background: 'white', borderRadius: '12px', padding: '60px', textAlign: 'center', border: '1px solid #f0f0f0' }}>
           <FiUsers size={48} color="#dee2e6" style={{ marginBottom: '16px' }} />
           <h3 style={{ fontSize: '18px', marginBottom: '8px', color: '#495057' }}>No MPs found</h3>
@@ -213,7 +263,7 @@ function MPList() {
             
             return (
               <div 
-                key={mp.id} 
+                key={mp.id || Math.random()} 
                 className="card"
                 style={{ 
                   padding: '0',
@@ -232,7 +282,7 @@ function MPList() {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
                         <span style={{ 
                           padding: '4px 12px', 
                           backgroundColor: 'rgba(255,255,255,0.2)', 
@@ -240,7 +290,7 @@ function MPList() {
                           fontSize: '11px',
                           fontWeight: '500'
                         }}>
-                          {mp.party}
+                          {mp.party || 'Independent'}
                         </span>
                         <span style={{ 
                           padding: '4px 12px', 
@@ -250,10 +300,10 @@ function MPList() {
                           fontWeight: '500'
                         }}>
                           <FiMapPin size={12} style={{ marginRight: '4px' }} />
-                          {mp.constituency}
+                          {mp.constituency || 'Unknown'}
                         </span>
                       </div>
-                      <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '4px' }}>{mp.name}</h3>
+                      <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '4px' }}>{mp.name || 'Unknown'}</h3>
                     </div>
                     <div style={{ 
                       width: '60px', 
