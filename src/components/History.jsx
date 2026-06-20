@@ -38,10 +38,16 @@ function History() {
     setError(null);
     try {
       const response = await getHistoryFacts();
-      setFacts(response.data);
-      setFilteredFacts(response.data);
+      // API returns: { count: 10, next: null, previous: null, results: [...] }
+      const data = response.data;
+      const factsArray = data.results || [];
+      setFacts(factsArray);
+      setFilteredFacts(factsArray);
     } catch (err) {
+      console.error('Error fetching facts:', err);
       setError('Unable to load history facts. Please try again.');
+      setFacts([]);
+      setFilteredFacts([]);
     } finally {
       setLoading(false);
     }
@@ -176,10 +182,10 @@ function History() {
                 <p style={{ lineHeight: '1.6', color: '#495057', marginBottom: selectedFact?.id === fact.id ? '16px' : '0' }}>
                   {selectedFact?.id === fact.id 
                     ? fact.content 
-                    : `${fact.content.substring(0, 200)}...`
+                    : `${fact.content ? fact.content.substring(0, 200) : ''}...`
                   }
                 </p>
-                {fact.content.length > 200 && selectedFact?.id !== fact.id && (
+                {fact.content && fact.content.length > 200 && selectedFact?.id !== fact.id && (
                   <span style={{ color: '#006B3F', fontSize: '13px', fontWeight: '500' }}>
                     Click to read more →
                   </span>

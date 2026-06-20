@@ -40,8 +40,8 @@ function Footer() {
 
   const contactInfo = [
     { icon: FiMapPin, text: 'Nairobi, Kenya' },
-    { icon: FiMail, text: 'maxmillanjue@citizenhub.ke' },
-    { icon: FiPhone, text: '+254 705632334' },
+    { icon: FiMail, text: 'info@citizenhub.ke' },
+    { icon: FiPhone, text: '+254 700 000 000' },
   ];
 
   const socialLinks = [

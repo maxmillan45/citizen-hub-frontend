@@ -10,6 +10,7 @@ function FAQ() {
   const [openIndex, setOpenIndex] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const [error, setError] = useState(null);
 
   const categories = [
     { value: 'all', label: 'All Questions', icon: FiHelpCircle, color: '#006B3F', count: 0 },
@@ -30,12 +31,10 @@ function FAQ() {
   useEffect(() => {
     let filtered = faqs;
     
-    // Apply category filter
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(f => f.category === selectedCategory);
     }
     
-    // Apply search filter
     if (searchQuery.trim()) {
       filtered = filtered.filter(f => 
         f.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -45,7 +44,6 @@ function FAQ() {
     
     setFilteredFaqs(filtered);
     
-    // Update category counts
     const updatedCategories = [...categories];
     updatedCategories[0].count = faqs.length;
     for (let i = 1; i < updatedCategories.length; i++) {
@@ -55,12 +53,20 @@ function FAQ() {
   }, [selectedCategory, searchQuery, faqs]);
 
   const fetchFAQs = async () => {
+    setLoading(true);
+    setError(null);
     try {
       const response = await getFAQs();
-      setFaqs(response.data);
-      setFilteredFaqs(response.data);
+      // API returns: { count: X, results: [...] }
+      const data = response.data;
+      const faqsArray = data.results || [];
+      setFaqs(faqsArray);
+      setFilteredFaqs(faqsArray);
     } catch (err) {
       console.error('Failed to fetch FAQs:', err);
+      setError('Unable to load FAQs. Please try again.');
+      setFaqs([]);
+      setFilteredFaqs([]);
     } finally {
       setLoading(false);
     }
@@ -74,9 +80,44 @@ function FAQ() {
     setSearchQuery('');
   };
 
+  const getCategoryLabel = (category) => {
+    const labels = {
+      'arrest': 'Arrest & Police',
+      'land': 'Land & Property',
+      'employment': 'Employment',
+      'health': 'Health',
+      'education': 'Education',
+      'family': 'Family',
+      'corruption': 'Corruption',
+      'voting': 'Voting',
+      'technology': 'Technology',
+      'other': 'Other'
+    };
+    return labels[category] || category;
+  };
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px' }}>
+        <div className="loading-spinner" style={{ margin: '0 auto 20px' }}></div>
+        <p style={{ color: '#6c757d' }}>Loading frequently asked questions...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ background: '#FFEBEE', borderRadius: '12px', padding: '40px', textAlign: 'center' }}>
+        <p style={{ color: '#BB0000' }}>{error}</p>
+        <button onClick={fetchFAQs} className="btn-secondary" style={{ marginTop: '16px' }}>
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="container" style={{ paddingTop: '48px', paddingBottom: '48px' }}>
-      {/* Header Section */}
       <div style={{ marginBottom: '40px' }}>
         <h1 className="heading-1" style={{ marginBottom: '12px' }}>Frequently Asked Questions</h1>
         <p className="text-muted" style={{ fontSize: '16px' }}>
@@ -84,7 +125,6 @@ function FAQ() {
         </p>
       </div>
 
-      {/* Search Bar */}
       <div style={{ 
         background: 'white', 
         borderRadius: '12px', 
@@ -98,7 +138,7 @@ function FAQ() {
           <input
             type="text"
             className="input-field"
-            style={{ paddingLeft: '44px', paddingRight: '44px' }}
+            style={{ paddingLeft: '44px', paddingRight: '44px', width: '100%' }}
             placeholder="Search for questions or keywords..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -123,12 +163,11 @@ function FAQ() {
         </div>
       </div>
 
-      {/* Filter Toggle */}
       <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <button
           onClick={() => setShowFilters(!showFilters)}
           className="btn-outline"
-          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', cursor: 'pointer' }}
         >
           <FiFilter size={16} />
           {showFilters ? 'Hide Categories' : 'Show Categories'}
@@ -141,7 +180,7 @@ function FAQ() {
               borderRadius: '20px',
               fontSize: '11px'
             }}>
-              {categories.find(c => c.value === selectedCategory)?.label}
+              {getCategoryLabel(selectedCategory)}
             </span>
           )}
         </button>
@@ -150,14 +189,13 @@ function FAQ() {
           <button
             onClick={() => setSelectedCategory('all')}
             className="btn-secondary"
-            style={{ padding: '6px 12px', fontSize: '12px' }}
+            style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}
           >
             Clear Filter
           </button>
         )}
       </div>
 
-      {/* Category Filters */}
       {showFilters && (
         <div style={{ 
           background: 'white', 
@@ -211,13 +249,7 @@ function FAQ() {
         </div>
       )}
 
-      {/* FAQ List */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px' }}>
-          <div className="loading-spinner" style={{ margin: '0 auto 20px' }}></div>
-          <p style={{ color: '#6c757d' }}>Loading frequently asked questions...</p>
-        </div>
-      ) : filteredFaqs.length === 0 ? (
+      {filteredFaqs.length === 0 ? (
         <div style={{ 
           background: 'white', 
           borderRadius: '12px', 
@@ -338,7 +370,7 @@ function FAQ() {
                           fontSize: '11px',
                           color: '#6c757d'
                         }}>
-                          Category: {categories.find(c => c.value === faq.category)?.label || faq.category}
+                          Category: {getCategoryLabel(faq.category)}
                         </span>
                       )}
                     </div>
