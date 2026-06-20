@@ -3,21 +3,21 @@ import { getEvents } from '../services/api';
 import { 
   FiCalendar, 
   FiMapPin, 
-  FiClock, 
   FiUsers, 
   FiFilter, 
   FiRefreshCw,
   FiChevronRight,
   FiInfo,
   FiBookmark,
-  FiBell
+  FiBell,
+  FiDollarSign
 } from 'react-icons/fi';
 
 function Events() {
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
-  const [selectedCounty, setSelectedCounty] = useState('all');
-  const [selectedType, setSelectedType] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedLocation, setSelectedLocation] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -25,16 +25,21 @@ function Events() {
   const [attendingEvents, setAttendingEvents] = useState([]);
   const [showSubscribeMessage, setShowSubscribeMessage] = useState(false);
 
-  const counties = [
+  const locations = [
     'all', 'Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Kiambu', 
     'Uasin Gishu', 'Kakamega', 'Machakos', 'Meru', 'Nyeri'
   ];
 
-  const eventTypes = [
+  const categories = [
     { value: 'all', label: 'All Events', color: '#006B3F' },
-    { value: 'national', label: 'National Holidays', color: '#BB0000' },
-    { value: 'participation', label: 'Public Participation', color: '#006B3F' },
-    { value: 'community', label: 'Community Events', color: '#1A1A1A' },
+    { value: 'public_holiday', label: 'Public Holiday', color: '#BB0000' },
+    { value: 'town_hall', label: 'Town Hall', color: '#006B3F' },
+    { value: 'civic_education', label: 'Civic Education', color: '#1A1A1A' },
+    { value: 'community_meeting', label: 'Community Meeting', color: '#D4A017' },
+    { value: 'parliament', label: 'Parliament', color: '#1A1A1A' },
+    { value: 'government', label: 'Government', color: '#006B3F' },
+    { value: 'health', label: 'Health', color: '#BB0000' },
+    { value: 'environment', label: 'Environment', color: '#006B3F' },
   ];
 
   useEffect(() => {
@@ -48,28 +53,33 @@ function Events() {
   useEffect(() => {
     let filtered = [...events];
     
-    if (selectedCounty !== 'all') {
-      filtered = filtered.filter(e => e.county === selectedCounty);
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(e => e.category === selectedCategory);
     }
     
-    if (selectedType !== 'all') {
-      filtered = filtered.filter(e => e.event_type === selectedType);
+    if (selectedLocation !== 'all') {
+      filtered = filtered.filter(e => e.location && e.location.includes(selectedLocation));
     }
     
-    filtered.sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
+    filtered.sort((a, b) => new Date(a.date) - new Date(b.date));
     
     setFilteredEvents(filtered);
-  }, [selectedCounty, selectedType, events]);
+  }, [selectedCategory, selectedLocation, events]);
 
   const fetchEvents = async () => {
     setLoading(true);
     setError(null);
     try {
       const response = await getEvents();
-      setEvents(response.data);
-      setFilteredEvents(response.data);
+      const data = response.data;
+      const eventsArray = data.results || [];
+      setEvents(eventsArray);
+      setFilteredEvents(eventsArray);
     } catch (err) {
+      console.error('Error fetching events:', err);
       setError('Unable to load events. Please try again later.');
+      setEvents([]);
+      setFilteredEvents([]);
     } finally {
       setLoading(false);
     }
@@ -106,15 +116,18 @@ function Events() {
     }, 3000);
   };
 
-  const getEventTypeStyle = (type) => {
-    switch(type) {
-      case 'national':
-        return { bg: '#BB0000', label: 'National Holiday' };
-      case 'participation':
-        return { bg: '#006B3F', label: 'Public Participation' };
-      default:
-        return { bg: '#1A1A1A', label: 'Community Event' };
-    }
+  const getCategoryStyle = (category) => {
+    const styles = {
+      'public_holiday': { bg: '#BB0000', label: 'Public Holiday' },
+      'town_hall': { bg: '#006B3F', label: 'Town Hall' },
+      'civic_education': { bg: '#1A1A1A', label: 'Civic Education' },
+      'community_meeting': { bg: '#D4A017', label: 'Community Meeting' },
+      'parliament': { bg: '#1A1A1A', label: 'Parliament' },
+      'government': { bg: '#006B3F', label: 'Government' },
+      'health': { bg: '#BB0000', label: 'Health' },
+      'environment': { bg: '#006B3F', label: 'Environment' },
+    };
+    return styles[category] || { bg: '#6c757d', label: 'Event' };
   };
 
   const isUpcoming = (date) => {
@@ -130,17 +143,29 @@ function Events() {
     });
   };
 
+  const getCategoryLabel = (category) => {
+    const labels = {
+      'public_holiday': 'Public Holiday',
+      'town_hall': 'Town Hall',
+      'civic_education': 'Civic Education',
+      'community_meeting': 'Community Meeting',
+      'parliament': 'Parliament',
+      'government': 'Government',
+      'health': 'Health',
+      'environment': 'Environment'
+    };
+    return labels[category] || category;
+  };
+
   return (
     <div className="container" style={{ paddingTop: '48px', paddingBottom: '48px' }}>
-      {/* Header Section */}
       <div style={{ marginBottom: '40px' }}>
         <h1 className="heading-1" style={{ marginBottom: '12px' }}>Public Events</h1>
         <p className="text-muted" style={{ fontSize: '16px' }}>
-          Discover and participate in national holidays, public forums, and community gatherings across Kenya
+          Discover and participate in public events, holidays, and community gatherings across Kenya
         </p>
       </div>
 
-      {/* Filter Bar */}
       <div style={{ 
         background: 'white', 
         borderRadius: '12px', 
@@ -158,11 +183,11 @@ function Events() {
             <FiFilter size={16} />
             {showFilters ? 'Hide Filters' : 'Show Filters'}
           </button>
-          {(selectedCounty !== 'all' || selectedType !== 'all') && (
+          {(selectedCategory !== 'all' || selectedLocation !== 'all') && (
             <button
               onClick={() => {
-                setSelectedCounty('all');
-                setSelectedType('all');
+                setSelectedCategory('all');
+                setSelectedLocation('all');
               }}
               className="btn-secondary"
               style={{ padding: '6px 12px', fontSize: '12px' }}
@@ -174,57 +199,55 @@ function Events() {
 
         {showFilters && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '16px' }}>
-            {/* County Filter */}
             <div>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#495057' }}>
                 <FiMapPin size={14} style={{ marginRight: '6px' }} />
-                County
+                Location
               </label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {counties.map(county => (
+                {locations.map(location => (
                   <button
-                    key={county}
-                    onClick={() => setSelectedCounty(county)}
+                    key={location}
+                    onClick={() => setSelectedLocation(location)}
                     style={{
                       padding: '6px 14px',
                       borderRadius: '20px',
-                      border: selectedCounty === county ? 'none' : '1px solid #e9ecef',
-                      backgroundColor: selectedCounty === county ? '#006B3F' : 'white',
-                      color: selectedCounty === county ? 'white' : '#495057',
+                      border: selectedLocation === location ? 'none' : '1px solid #e9ecef',
+                      backgroundColor: selectedLocation === location ? '#006B3F' : 'white',
+                      color: selectedLocation === location ? 'white' : '#495057',
                       cursor: 'pointer',
                       fontSize: '13px',
                       transition: 'all 0.2s ease'
                     }}
                   >
-                    {county === 'all' ? 'All Counties' : county}
+                    {location === 'all' ? 'All Locations' : location}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Event Type Filter */}
             <div>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#495057' }}>
                 <FiInfo size={14} style={{ marginRight: '6px' }} />
-                Event Type
+                Category
               </label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {eventTypes.map(type => (
+                {categories.map(cat => (
                   <button
-                    key={type.value}
-                    onClick={() => setSelectedType(type.value)}
+                    key={cat.value}
+                    onClick={() => setSelectedCategory(cat.value)}
                     style={{
                       padding: '6px 14px',
                       borderRadius: '20px',
-                      border: selectedType === type.value ? 'none' : '1px solid #e9ecef',
-                      backgroundColor: selectedType === type.value ? type.color : 'white',
-                      color: selectedType === type.value ? 'white' : '#495057',
+                      border: selectedCategory === cat.value ? 'none' : '1px solid #e9ecef',
+                      backgroundColor: selectedCategory === cat.value ? cat.color : 'white',
+                      color: selectedCategory === cat.value ? 'white' : '#495057',
                       cursor: 'pointer',
                       fontSize: '13px',
                       transition: 'all 0.2s ease'
                     }}
                   >
-                    {type.label}
+                    {cat.label}
                   </button>
                 ))}
               </div>
@@ -233,13 +256,12 @@ function Events() {
         )}
       </div>
 
-      {/* Results Summary */}
       {!loading && !error && (
         <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <p style={{ color: '#6c757d', fontSize: '14px' }}>
             Showing <strong style={{ color: '#006B3F' }}>{filteredEvents.length}</strong> events
-            {selectedCounty !== 'all' && ` in ${selectedCounty}`}
-            {selectedType !== 'all' && ` (${eventTypes.find(t => t.value === selectedType)?.label})`}
+            {selectedLocation !== 'all' && ` in ${selectedLocation}`}
+            {selectedCategory !== 'all' && ` (${getCategoryLabel(selectedCategory)})`}
           </p>
           {filteredEvents.length > 0 && (
             <p style={{ color: '#6c757d', fontSize: '13px' }}>
@@ -249,7 +271,6 @@ function Events() {
         </div>
       )}
 
-      {/* Events Grid */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '60px' }}>
           <div className="loading-spinner" style={{ margin: '0 auto 20px' }}></div>
@@ -283,8 +304,8 @@ function Events() {
       ) : (
         <div className="grid grid-2" style={{ gap: '28px' }}>
           {filteredEvents.map((event) => {
-            const typeStyle = getEventTypeStyle(event.event_type);
-            const upcoming = isUpcoming(event.event_date);
+            const categoryStyle = getCategoryStyle(event.category);
+            const upcoming = isUpcoming(event.date);
             const isSaved = savedEvents.includes(event.id);
             const isAttending = attendingEvents.includes(event.id);
             
@@ -299,10 +320,9 @@ function Events() {
                   position: 'relative'
                 }}
               >
-                {/* Event Header with Type Badge */}
                 <div style={{ 
                   padding: '20px 24px',
-                  background: `linear-gradient(135deg, ${typeStyle.bg} 0%, ${typeStyle.bg}CC 100%)`,
+                  background: `linear-gradient(135deg, ${categoryStyle.bg} 0%, ${categoryStyle.bg}CC 100%)`,
                   color: 'white',
                   position: 'relative'
                 }}>
@@ -318,7 +338,7 @@ function Events() {
                       fontWeight: '500'
                     }}>
                       <FiInfo size={12} />
-                      {typeStyle.label}
+                      {categoryStyle.label}
                     </span>
                     <button
                       onClick={() => toggleSaveEvent(event.id)}
@@ -346,7 +366,7 @@ function Events() {
                     marginBottom: '12px',
                     lineHeight: '1.3'
                   }}>
-                    {event.name}
+                    {event.title}
                   </h3>
                   
                   {!upcoming && (
@@ -364,21 +384,31 @@ function Events() {
                   )}
                 </div>
 
-                {/* Event Details */}
                 <div style={{ padding: '20px 24px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#6c757d' }}>
                       <FiCalendar size={16} style={{ flexShrink: 0 }} />
-                      <span style={{ fontSize: '14px' }}>{formatDate(event.event_date)}</span>
+                      <span style={{ fontSize: '14px' }}>{formatDate(event.date)}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#6c757d' }}>
                       <FiMapPin size={16} style={{ flexShrink: 0 }} />
-                      <span style={{ fontSize: '14px' }}>{event.location}, {event.county}</span>
+                      <span style={{ fontSize: '14px' }}>{event.location}</span>
                     </div>
-                    {event.start_time && (
+                    {event.organizer && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#6c757d' }}>
-                        <FiClock size={16} style={{ flexShrink: 0 }} />
-                        <span style={{ fontSize: '14px' }}>{event.start_time} - {event.end_time}</span>
+                        <FiUsers size={16} style={{ flexShrink: 0 }} />
+                        <span style={{ fontSize: '14px' }}>Organized by: {event.organizer}</span>
+                      </div>
+                    )}
+                    {!event.is_free && event.fee_amount && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#6c757d' }}>
+                        <FiDollarSign size={16} style={{ flexShrink: 0 }} />
+                        <span style={{ fontSize: '14px' }}>Fee: KES {event.fee_amount}</span>
+                      </div>
+                    )}
+                    {event.is_free && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#006B3F' }}>
+                        <span style={{ fontSize: '14px', fontWeight: '500' }}>Free Entry</span>
                       </div>
                     )}
                   </div>
@@ -405,7 +435,7 @@ function Events() {
                       }}
                     >
                       <FiUsers size={16} />
-                      {isAttending ? 'Attending ✓' : 'I\'m Attending'}
+                      {isAttending ? 'Attending' : 'I\'m Attending'}
                       <FiChevronRight size={16} />
                     </button>
                   ) : (
@@ -433,7 +463,6 @@ function Events() {
         </div>
       )}
 
-      {/* Call to Action */}
       {!loading && !error && filteredEvents.length > 0 && (
         <div style={{ 
           marginTop: '48px',
@@ -445,7 +474,7 @@ function Events() {
         }}>
           <h3 style={{ fontSize: '20px', marginBottom: '8px' }}>Stay Informed</h3>
           <p style={{ opacity: 0.9, marginBottom: '16px' }}>
-            Get notified about upcoming public participation events in your county
+            Get notified about upcoming public events in your area
           </p>
           <button 
             onClick={handleSubscribe}
