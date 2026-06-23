@@ -94,12 +94,13 @@ export const getFAQs = (category = '') =>
 export const getFAQ = (id) => 
   api.get(`/api/auth/faq/${id}/`);
 
-export const getMPs = (party = '', search = '') => {
+// In src/services/api.js - replace the getMPs function with this:
+export const getMPs = (page = 1, pageSize = 20) => {
   let url = '/api/auth/mp/';
   const params = new URLSearchParams();
-  if (party) params.append('party', party);
-  if (search) params.append('search', search);
-  if (params.toString()) url += `?${params.toString()}`;
+  params.append('page', page);
+  params.append('page_size', pageSize);
+  url += `?${params.toString()}`;
   return api.get(url);
 };
 
@@ -140,3 +141,4 @@ export const healthCheck = () =>
   api.get('/health/');
 
 export default api;
+
