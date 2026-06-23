@@ -25,6 +25,11 @@ function History() {
   }, []);
 
   useEffect(() => {
+    if (!Array.isArray(facts)) {
+      setFilteredFacts([]);
+      return;
+    }
+    
     if (selectedCategory === 'all') {
       setFilteredFacts(facts);
     } else {
@@ -38,9 +43,26 @@ function History() {
     setError(null);
     try {
       const response = await getHistoryFacts();
-      // API returns: { count: 10, next: null, previous: null, results: [...] }
+      
+      // Check if response exists
+      if (!response || !response.data) {
+        throw new Error('No response from server');
+      }
+      
       const data = response.data;
-      const factsArray = data.results || [];
+      
+      // Extract the results array
+      let factsArray = [];
+      if (data.results && Array.isArray(data.results)) {
+        factsArray = data.results;
+      } else if (Array.isArray(data)) {
+        factsArray = data;
+      } else {
+        factsArray = [];
+      }
+      
+      console.log('Facts loaded:', factsArray.length);
+      
       setFacts(factsArray);
       setFilteredFacts(factsArray);
     } catch (err) {
@@ -62,6 +84,28 @@ function History() {
     const cat = categories.find(c => c.value === category);
     return cat ? cat.label : category;
   };
+
+  if (loading) {
+    return (
+      <div className="container" style={{ paddingTop: '48px', textAlign: 'center', paddingBottom: '60px' }}>
+        <div className="loading-spinner" style={{ margin: '0 auto 20px' }}></div>
+        <p style={{ color: '#6c757d' }}>Loading Kenyan history...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container" style={{ paddingTop: '48px', paddingBottom: '60px' }}>
+        <div style={{ background: '#FFEBEE', borderRadius: '12px', padding: '40px', textAlign: 'center', border: '1px solid #FFCDD2' }}>
+          <p style={{ color: '#BB0000', marginBottom: '16px' }}>{error}</p>
+          <button onClick={fetchFacts} className="btn-secondary" style={{ padding: '10px 24px', cursor: 'pointer' }}>
+            <FiRefreshCw size={16} style={{ marginRight: '8px' }} /> Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container" style={{ paddingTop: '48px', paddingBottom: '48px' }}>
@@ -115,19 +159,7 @@ function History() {
         </div>
       </div>
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px' }}>
-          <div className="loading-spinner" style={{ margin: '0 auto 20px' }}></div>
-          <p style={{ color: '#6c757d' }}>Loading Kenyan history...</p>
-        </div>
-      ) : error ? (
-        <div style={{ background: '#FFEBEE', borderRadius: '12px', padding: '40px', textAlign: 'center', border: '1px solid #FFCDD2' }}>
-          <p style={{ color: '#BB0000', marginBottom: '16px' }}>{error}</p>
-          <button onClick={fetchFacts} className="btn-secondary">
-            <FiRefreshCw size={16} style={{ marginRight: '8px' }} /> Try Again
-          </button>
-        </div>
-      ) : filteredFacts.length === 0 ? (
+      {filteredFacts.length === 0 ? (
         <div style={{ background: 'white', borderRadius: '12px', padding: '60px', textAlign: 'center', border: '1px solid #f0f0f0' }}>
           <FiBookOpen size={48} color="#dee2e6" style={{ marginBottom: '16px' }} />
           <p style={{ color: '#6c757d' }}>No history facts found in this category.</p>

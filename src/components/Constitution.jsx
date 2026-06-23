@@ -1,18 +1,52 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { searchConstitution, getArticle } from '../services/api';
-import { FiSearch, FiBook, FiArrowLeft, FiRefreshCw, FiFileText, FiInfo } from 'react-icons/fi';
+import { FiSearch, FiBook, FiArrowLeft, FiFileText, FiInfo, FiGlobe } from 'react-icons/fi';
 
-function Constitution() {
+function ConstitutionSearch() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchPerformed, setSearchPerformed] = useState(false);
+  const [showSimplified, setShowSimplified] = useState(true);
+  const [language, setLanguage] = useState('english');
+
+  // Load all articles on page load
+  useEffect(() => {
+    loadAllArticles();
+  }, []);
+
+  const loadAllArticles = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await searchConstitution('');
+      const data = response.data;
+      
+      let articlesArray = [];
+      if (Array.isArray(data)) {
+        articlesArray = data;
+      } else if (data && data.results && Array.isArray(data.results)) {
+        articlesArray = data.results;
+      } else {
+        articlesArray = [];
+      }
+      
+      setResults(articlesArray);
+      setSearchPerformed(true);
+    } catch (err) {
+      console.error('Failed to load articles:', err);
+      setError('Failed to load constitution articles.');
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSearch = async () => {
     if (!query.trim()) {
-      setError('Please enter a search term');
+      loadAllArticles();
       return;
     }
     
@@ -23,9 +57,17 @@ function Constitution() {
     
     try {
       const response = await searchConstitution(query);
-      // API returns: { count: X, results: [...] }
       const data = response.data;
-      const articlesArray = data.results || [];
+      
+      let articlesArray = [];
+      if (Array.isArray(data)) {
+        articlesArray = data;
+      } else if (data && data.results && Array.isArray(data.results)) {
+        articlesArray = data.results;
+      } else {
+        articlesArray = [];
+      }
+      
       setResults(articlesArray);
       
       if (articlesArray.length === 0) {
@@ -74,12 +116,34 @@ function Constitution() {
   const getTopicColor = (topic) => {
     const colors = {
       'rights': '#006B3F',
-      'land': '#D4A017',
+      'land': '#006B3F',
       'government': '#1A1A1A',
       'citizenship': '#BB0000',
       'other': '#6c757d'
     };
     return colors[topic] || '#6c757d';
+  };
+
+  const getDisplayText = (article) => {
+    if (showSimplified) {
+      if (language === 'swahili' && article.simplified_swahili) {
+        return article.simplified_swahili;
+      }
+      if (article.simplified_english) {
+        return article.simplified_english;
+      }
+    }
+    return article.full_text || article.content || 'Content not available';
+  };
+
+  const getDisplayTitle = (article) => {
+    if (showSimplified) {
+      if (language === 'swahili') {
+        return `Kifungu ${article.article_number}`;
+      }
+      return `Article ${article.article_number} (Simplified)`;
+    }
+    return `Article ${article.article_number}`;
   };
 
   if (selectedArticle) {
@@ -96,36 +160,59 @@ function Constitution() {
         
         <div className="card" style={{ padding: '32px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
-            <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#1A1A1A', margin: 0 }}>
-              Article {selectedArticle.article_number}
-            </h1>
-            {selectedArticle.topic && (
-              <span style={{
-                display: 'inline-block',
-                padding: '4px 12px',
-                borderRadius: '20px',
-                backgroundColor: getTopicColor(selectedArticle.topic),
-                color: 'white',
-                fontSize: '12px',
-                fontWeight: '500'
-              }}>
-                {getTopicLabel(selectedArticle.topic)}
-              </span>
-            )}
+            <div>
+              <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#1A1A1A', margin: 0 }}>
+                {getDisplayTitle(selectedArticle)}
+              </h1>
+              {selectedArticle.title && !showSimplified && (
+                <h3 style={{ fontSize: '16px', fontWeight: '400', color: '#6c757d', marginTop: '4px' }}>
+                  {selectedArticle.title}
+                </h3>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {selectedArticle.topic && (
+                <span style={{
+                  display: 'inline-block',
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  backgroundColor: getTopicColor(selectedArticle.topic),
+                  color: 'white',
+                  fontSize: '12px',
+                  fontWeight: '500'
+                }}>
+                  {getTopicLabel(selectedArticle.topic)}
+                </span>
+              )}
+              <button
+                onClick={() => setShowSimplified(!showSimplified)}
+                className="btn-outline"
+                style={{ padding: '4px 12px', fontSize: '12px', cursor: 'pointer' }}
+              >
+                {showSimplified ? 'Show Full Text' : 'Show Simplified'}
+              </button>
+              {showSimplified && (
+                <button
+                  onClick={() => setLanguage(language === 'english' ? 'swahili' : 'english')}
+                  className="btn-outline"
+                  style={{ padding: '4px 12px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <FiGlobe size={14} />
+                  {language === 'english' ? 'English' : 'Kiswahili'}
+                </button>
+              )}
+            </div>
           </div>
-          
-          {selectedArticle.title && (
-            <h3 style={{ fontSize: '18px', fontWeight: '500', color: '#495057', marginBottom: '24px' }}>
-              {selectedArticle.title}
-            </h3>
-          )}
           
           <div style={{ 
             lineHeight: '1.8', 
             color: '#212529',
-            whiteSpace: 'pre-wrap'
+            whiteSpace: 'pre-wrap',
+            padding: '16px',
+            backgroundColor: showSimplified ? '#E8F5E9' : 'transparent',
+            borderRadius: '8px'
           }}>
-            {selectedArticle.full_text || selectedArticle.content || 'Content not available'}
+            {getDisplayText(selectedArticle)}
           </div>
           
           {selectedArticle.chapter && (
@@ -150,11 +237,10 @@ function Constitution() {
       <div style={{ marginBottom: '40px' }}>
         <h1 className="heading-1" style={{ marginBottom: '12px' }}>Constitution of Kenya 2010</h1>
         <p className="text-muted" style={{ fontSize: '16px' }}>
-          Search and browse the Kenyan Constitution
+          Browse and search the Kenyan Constitution in English or Kiswahili
         </p>
       </div>
 
-      {/* Search Bar */}
       <div style={{ 
         background: 'white', 
         borderRadius: '12px', 
@@ -163,7 +249,7 @@ function Constitution() {
         boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
         border: '1px solid #f0f0f0'
       }}>
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
           <div style={{ flex: '1', minWidth: '200px', position: 'relative' }}>
             <FiSearch style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#adb5bd' }} />
             <input
@@ -189,10 +275,18 @@ function Constitution() {
           >
             {loading ? 'Searching...' : <><FiSearch size={16} /> Search</>}
           </button>
+          <button 
+            onClick={loadAllArticles} 
+            disabled={loading} 
+            className="btn-outline"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', cursor: 'pointer' }}
+          >
+            <FiBook size={16} />
+            Show All
+          </button>
         </div>
       </div>
 
-      {/* Error */}
       {error && (
         <div style={{ 
           background: '#FFEBEE', 
@@ -209,7 +303,6 @@ function Constitution() {
         </div>
       )}
 
-      {/* Loading */}
       {loading && (
         <div style={{ textAlign: 'center', padding: '40px' }}>
           <div className="loading-spinner" style={{ margin: '0 auto 20px' }}></div>
@@ -217,8 +310,7 @@ function Constitution() {
         </div>
       )}
 
-      {/* Results */}
-      {!loading && !error && searchPerformed && results.length === 0 && (
+      {!loading && !error && results.length === 0 && (
         <div style={{ 
           background: 'white', 
           borderRadius: '12px', 
@@ -232,18 +324,17 @@ function Constitution() {
         </div>
       )}
 
-      {/* Results Grid */}
       {!loading && !error && results.length > 0 && (
         <div>
           <div style={{ marginBottom: '16px' }}>
             <p style={{ color: '#6c757d', fontSize: '14px' }}>
-              Found <strong style={{ color: '#006B3F' }}>{results.length}</strong> articles
+              Showing <strong style={{ color: '#006B3F' }}>{results.length}</strong> articles
             </p>
           </div>
           <div className="grid grid-2" style={{ gap: '20px' }}>
             {results.map((article) => (
               <div 
-                key={article.id} 
+                key={article.id || Math.random()} 
                 className="card" 
                 onClick={() => handleViewArticle(article.article_number)} 
                 style={{ 
@@ -285,9 +376,9 @@ function Constitution() {
                 <p style={{ fontSize: '14px', color: '#495057', margin: '8px 0 12px 0' }}>
                   {article.title || `Article ${article.article_number}`}
                 </p>
-                {article.full_text && (
+                {article.simplified_english && (
                   <p style={{ fontSize: '13px', color: '#6c757d', margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                    {article.full_text.substring(0, 150)}...
+                    {article.simplified_english.substring(0, 150)}...
                   </p>
                 )}
                 <div style={{ marginTop: '12px', color: '#006B3F', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -303,4 +394,4 @@ function Constitution() {
   );
 }
 
-export default Constitution;
+export default ConstitutionSearch;
