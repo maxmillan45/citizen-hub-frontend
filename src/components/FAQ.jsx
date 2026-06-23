@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getFAQs } from '../services/api';
-import { FiChevronDown, FiChevronUp, FiFilter, FiHelpCircle, FiSearch, FiX, FiRefreshCw } from 'react-icons/fi';
+import { FiChevronDown, FiChevronUp, FiFilter, FiHelpCircle, FiSearch, FiX, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
 function FAQ() {
   const [faqs, setFaqs] = useState([]);
@@ -11,26 +11,30 @@ function FAQ() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [itemsPerPage] = useState(10);
 
   const categories = [
     { value: 'all', label: 'All Questions', icon: FiHelpCircle, color: '#006B3F', count: 0 },
+    { value: 'arrest', label: 'Arrest & Police', icon: FiHelpCircle, color: '#BB0000', count: 0 },
+    { value: 'land', label: 'Land & Property', icon: FiHelpCircle, color: '#D4A017', count: 0 },
+    { value: 'employment', label: 'Employment', icon: FiHelpCircle, color: '#006B3F', count: 0 },
     { value: 'health', label: 'Health', icon: FiHelpCircle, color: '#BB0000', count: 0 },
-    { value: 'education', label: 'Education', icon: FiHelpCircle, color: '#1A1A1A', count: 0 },
+    { value: 'education', label: 'Education', icon: FiHelpCircle, color: '#D4A017', count: 0 },
     { value: 'family', label: 'Family', icon: FiHelpCircle, color: '#006B3F', count: 0 },
     { value: 'voting', label: 'Voting', icon: FiHelpCircle, color: '#BB0000', count: 0 },
     { value: 'technology', label: 'Technology', icon: FiHelpCircle, color: '#1A1A1A', count: 0 },
   ];
 
   useEffect(() => {
-    fetchFAQs();
+    fetchAllFAQs();
   }, []);
 
   useEffect(() => {
-    if (!Array.isArray(faqs)) {
-      setFilteredFaqs([]);
-      return;
-    }
-    
     let filtered = faqs;
     
     if (selectedCategory !== 'all') {
@@ -47,6 +51,13 @@ function FAQ() {
     
     setFilteredFaqs(filtered);
     
+    // Update total pages based on filtered results
+    setTotalPages(Math.ceil(filtered.length / itemsPerPage));
+    setTotalItems(filtered.length);
+    
+    // Reset to page 1 when filters change
+    setCurrentPage(1);
+    
     const updatedCategories = [...categories];
     updatedCategories[0].count = faqs.length;
     for (let i = 1; i < updatedCategories.length; i++) {
@@ -55,48 +66,62 @@ function FAQ() {
     
   }, [selectedCategory, searchQuery, faqs]);
 
-  const fetchFAQs = async () => {
+  const fetchAllFAQs = async () => {
     setLoading(true);
     setError(null);
     try {
-      console.log('Fetching FAQs...');
       const response = await getFAQs();
-      console.log('FAQ Response:', response);
       
-      // Check if response exists
-      if (!response) {
+      if (!response || !response.data) {
         throw new Error('No response from server');
       }
       
-      // Check if response.data exists
-      if (!response.data) {
-        throw new Error('No data in response');
-      }
-      
       const data = response.data;
-      console.log('FAQ Data:', data);
+      let allFaqs = [];
       
-      // Extract results array
-      let faqsArray = [];
+      // Check if it's a paginated response
       if (data.results && Array.isArray(data.results)) {
-        faqsArray = data.results;
+        // Get total count from first response
+        const totalCount = data.count || 0;
+        const pageSize = 50; // Fetch 50 per request
+        
+        // If there are more pages, fetch them all
+        if (totalCount > pageSize) {
+          const totalPagesNeeded = Math.ceil(totalCount / pageSize);
+          
+          // Fetch all pages in parallel
+          const fetchPromises = [];
+          for (let page = 1; page <= totalPagesNeeded; page++) {
+            fetchPromises.push(getFAQs());
+          }
+          
+          const responses = await Promise.all(fetchPromises);
+          
+          // Combine all results
+          responses.forEach(res => {
+            if (res && res.data && res.data.results) {
+              allFaqs = [...allFaqs, ...res.data.results];
+            }
+          });
+        } else {
+          allFaqs = data.results;
+        }
       } else if (Array.isArray(data)) {
-        faqsArray = data;
+        allFaqs = data;
       } else {
-        faqsArray = [];
+        allFaqs = [];
       }
       
-      console.log('FAQs Array:', faqsArray);
-      console.log('Number of FAQs:', faqsArray.length);
-      
-      setFaqs(faqsArray);
-      setFilteredFaqs(faqsArray);
+      setFaqs(allFaqs);
+      setFilteredFaqs(allFaqs);
+      setTotalItems(allFaqs.length);
+      setTotalPages(Math.ceil(allFaqs.length / itemsPerPage));
       
       // Update category counts
       const updatedCategories = [...categories];
-      updatedCategories[0].count = faqsArray.length;
+      updatedCategories[0].count = allFaqs.length;
       for (let i = 1; i < updatedCategories.length; i++) {
-        updatedCategories[i].count = faqsArray.filter(f => f.category === updatedCategories[i].value).length;
+        updatedCategories[i].count = allFaqs.filter(f => f.category === updatedCategories[i].value).length;
       }
       
     } catch (err) {
@@ -133,6 +158,22 @@ function FAQ() {
     return labels[category] || category;
   };
 
+  const handlePageChange = (page) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // Get current page items
+  const getCurrentPageItems = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredFaqs.slice(startIndex, endIndex);
+  };
+
+  const currentItems = getCurrentPageItems();
+
   if (loading) {
     return (
       <div className="container" style={{ paddingTop: '48px', textAlign: 'center', paddingBottom: '60px' }}>
@@ -153,8 +194,8 @@ function FAQ() {
           border: '1px solid #FFCDD2'
         }}>
           <p style={{ color: '#BB0000', marginBottom: '16px' }}>{error}</p>
-          <button onClick={fetchFAQs} className="btn-secondary" style={{ padding: '10px 24px', cursor: 'pointer' }}>
-            <FiRefreshCw size={16} style={{ marginRight: '8px' }} /> Try Again
+          <button onClick={() => fetchAllFAQs()} className="btn-secondary" style={{ padding: '10px 24px', cursor: 'pointer' }}>
+            Try Again
           </button>
         </div>
       </div>
@@ -294,7 +335,8 @@ function FAQ() {
         </div>
       )}
 
-      {filteredFaqs.length === 0 ? (
+      {/* FAQ List */}
+      {currentItems.length === 0 ? (
         <div style={{ 
           background: 'white', 
           borderRadius: '12px', 
@@ -307,124 +349,240 @@ function FAQ() {
           <p style={{ color: '#6c757d' }}>Try adjusting your search or filter criteria</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {filteredFaqs.map((faq, index) => (
-            <div 
-              key={faq.id || index} 
-              style={{ 
-                background: 'white', 
-                borderRadius: '12px', 
-                overflow: 'hidden',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                border: openIndex === index ? '1px solid #006B3F' : '1px solid #f0f0f0',
-                transition: 'all 0.3s ease'
-              }}
-            >
-              <button
-                onClick={() => toggleFaq(index)}
-                style={{
-                  width: '100%',
-                  padding: '20px 24px',
-                  textAlign: 'left',
-                  backgroundColor: 'white',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  transition: 'background-color 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#F8F9FA';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'white';
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
-                  <div style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '50%',
-                    backgroundColor: openIndex === index ? '#006B3F' : '#E9ECEF',
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {currentItems.map((faq, index) => {
+              const globalIndex = (currentPage - 1) * itemsPerPage + index;
+              return (
+                <div 
+                  key={faq.id || globalIndex} 
+                  style={{ 
+                    background: 'white', 
+                    borderRadius: '12px', 
+                    overflow: 'hidden',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    border: openIndex === globalIndex ? '1px solid #006B3F' : '1px solid #f0f0f0',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  <button
+                    onClick={() => toggleFaq(globalIndex)}
+                    style={{
+                      width: '100%',
+                      padding: '20px 24px',
+                      textAlign: 'left',
+                      backgroundColor: 'white',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      transition: 'background-color 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#F8F9FA';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'white';
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        backgroundColor: openIndex === globalIndex ? '#006B3F' : '#E9ECEF',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <FiHelpCircle size={16} color={openIndex === globalIndex ? 'white' : '#6c757d'} />
+                      </div>
+                      <span style={{ 
+                        fontSize: '16px', 
+                        fontWeight: '500', 
+                        color: openIndex === globalIndex ? '#006B3F' : '#212529',
+                        lineHeight: '1.4',
+                        flex: 1
+                      }}>
+                        {faq.question}
+                      </span>
+                    </div>
+                    <div style={{ 
+                      width: '28px', 
+                      height: '28px', 
+                      borderRadius: '50%', 
+                      backgroundColor: openIndex === globalIndex ? '#E8F5E9' : '#F8F9FA',
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      marginLeft: '12px'
+                    }}>
+                      {openIndex === globalIndex ? 
+                        <FiChevronUp size={18} color="#006B3F" /> : 
+                        <FiChevronDown size={18} color="#adb5bd" />
+                      }
+                    </div>
+                  </button>
+                  
+                  {openIndex === globalIndex && (
+                    <div style={{ 
+                      padding: '0 24px 24px 24px', 
+                      borderTop: '1px solid #f0f0f0',
+                      backgroundColor: '#FAFAFA'
+                    }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        gap: '12px',
+                        marginTop: '20px'
+                      }}>
+                        <div style={{
+                          width: '3px',
+                          backgroundColor: '#006B3F',
+                          borderRadius: '2px',
+                          flexShrink: 0
+                        }}></div>
+                        <div>
+                          <p style={{ 
+                            lineHeight: '1.7', 
+                            color: '#495057',
+                            marginBottom: '12px'
+                          }}>
+                            {faq.answer}
+                          </p>
+                          {faq.category && (
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '4px 12px',
+                              backgroundColor: '#E9ECEF',
+                              borderRadius: '20px',
+                              fontSize: '11px',
+                              color: '#6c757d'
+                            }}>
+                              Category: {getCategoryLabel(faq.category)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Pagination */}
+          {filteredFaqs.length > itemsPerPage && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: '32px',
+              padding: '16px 0',
+              borderTop: '1px solid #f0f0f0',
+              flexWrap: 'wrap',
+              gap: '12px'
+            }}>
+              <div style={{ fontSize: '14px', color: '#6c757d' }}>
+                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredFaqs.length)} of {filteredFaqs.length} FAQs
+              </div>
+              
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #ddd',
+                    backgroundColor: currentPage === 1 ? '#f5f5f5' : 'white',
+                    color: currentPage === 1 ? '#adb5bd' : '#495057',
+                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
-                  }}>
-                    <FiHelpCircle size={16} color={openIndex === index ? 'white' : '#6c757d'} />
-                  </div>
-                  <span style={{ 
-                    fontSize: '16px', 
-                    fontWeight: '500', 
-                    color: openIndex === index ? '#006B3F' : '#212529',
-                    lineHeight: '1.4',
-                    flex: 1
-                  }}>
-                    {faq.question}
-                  </span>
+                    gap: '4px'
+                  }}
+                >
+                  <FiChevronLeft size={16} />
+                  Previous
+                </button>
+                
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: '8px',
+                          border: currentPage === pageNum ? 'none' : '1px solid #ddd',
+                          backgroundColor: currentPage === pageNum ? '#006B3F' : 'white',
+                          color: currentPage === pageNum ? 'white' : '#495057',
+                          cursor: 'pointer',
+                          fontWeight: currentPage === pageNum ? '600' : '400',
+                          minWidth: '40px'
+                        }}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                  
+                  {totalPages > 5 && currentPage < totalPages - 2 && (
+                    <>
+                      <span style={{ padding: '8px 4px', color: '#adb5bd' }}>...</span>
+                      <button
+                        onClick={() => handlePageChange(totalPages)}
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: '8px',
+                          border: '1px solid #ddd',
+                          backgroundColor: 'white',
+                          color: '#495057',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {totalPages}
+                      </button>
+                    </>
+                  )}
                 </div>
-                <div style={{ 
-                  width: '28px', 
-                  height: '28px', 
-                  borderRadius: '50%', 
-                  backgroundColor: openIndex === index ? '#E8F5E9' : '#F8F9FA',
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  marginLeft: '12px'
-                }}>
-                  {openIndex === index ? 
-                    <FiChevronUp size={18} color="#006B3F" /> : 
-                    <FiChevronDown size={18} color="#adb5bd" />
-                  }
-                </div>
-              </button>
-              
-              {openIndex === index && (
-                <div style={{ 
-                  padding: '0 24px 24px 24px', 
-                  borderTop: '1px solid #f0f0f0',
-                  backgroundColor: '#FAFAFA'
-                }}>
-                  <div style={{ 
-                    display: 'flex', 
-                    gap: '12px',
-                    marginTop: '20px'
-                  }}>
-                    <div style={{
-                      width: '3px',
-                      backgroundColor: '#006B3F',
-                      borderRadius: '2px',
-                      flexShrink: 0
-                    }}></div>
-                    <div>
-                      <p style={{ 
-                        lineHeight: '1.7', 
-                        color: '#495057',
-                        marginBottom: '12px'
-                      }}>
-                        {faq.answer}
-                      </p>
-                      {faq.category && (
-                        <span style={{
-                          display: 'inline-block',
-                          padding: '4px 12px',
-                          backgroundColor: '#E9ECEF',
-                          borderRadius: '20px',
-                          fontSize: '11px',
-                          color: '#6c757d'
-                        }}>
-                          Category: {getCategoryLabel(faq.category)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
+                
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #ddd',
+                    backgroundColor: currentPage === totalPages ? '#f5f5f5' : 'white',
+                    color: currentPage === totalPages ? '#adb5bd' : '#495057',
+                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  Next
+                  <FiChevronRight size={16} />
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );
