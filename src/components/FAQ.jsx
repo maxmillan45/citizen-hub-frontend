@@ -14,11 +14,8 @@ function FAQ() {
 
   const categories = [
     { value: 'all', label: 'All Questions', icon: FiHelpCircle, color: '#006B3F', count: 0 },
-    { value: 'arrest', label: 'Arrest & Police', icon: FiHelpCircle, color: '#BB0000', count: 0 },
-    { value: 'land', label: 'Land & Property', icon: FiHelpCircle, color: '#D4A017', count: 0 },
-    { value: 'employment', label: 'Employment', icon: FiHelpCircle, color: '#006B3F', count: 0 },
     { value: 'health', label: 'Health', icon: FiHelpCircle, color: '#BB0000', count: 0 },
-    { value: 'education', label: 'Education', icon: FiHelpCircle, color: '#D4A017', count: 0 },
+    { value: 'education', label: 'Education', icon: FiHelpCircle, color: '#1A1A1A', count: 0 },
     { value: 'family', label: 'Family', icon: FiHelpCircle, color: '#006B3F', count: 0 },
     { value: 'voting', label: 'Voting', icon: FiHelpCircle, color: '#BB0000', count: 0 },
     { value: 'technology', label: 'Technology', icon: FiHelpCircle, color: '#1A1A1A', count: 0 },

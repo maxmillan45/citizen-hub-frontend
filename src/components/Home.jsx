@@ -62,7 +62,6 @@ function Home({ user: propUser }) {
     next_level_points: 100
   });
 
-  // Check localStorage for user if not passed as prop
   useEffect(() => {
     if (!user) {
       const token = localStorage.getItem('access_token');
@@ -73,7 +72,6 @@ function Home({ user: propUser }) {
     }
   }, []);
 
-  // Listen for storage changes (when user logs in/out in another tab)
   useEffect(() => {
     const handleStorageChange = () => {
       const token = localStorage.getItem('access_token');
@@ -141,10 +139,24 @@ function Home({ user: propUser }) {
     setIsLoading(true);
     try {
       const response = await getHistoryFacts();
-      if (response.data && response.data.length > 0) {
-        setAllFacts(response.data);
-        const randomIndex = Math.floor(Math.random() * response.data.length);
-        setRandomFact(response.data[randomIndex]);
+      
+      // Fix: Extract results array from the response
+      let factsArray = [];
+      if (response && response.data) {
+        const data = response.data;
+        if (data.results && Array.isArray(data.results)) {
+          factsArray = data.results;
+        } else if (Array.isArray(data)) {
+          factsArray = data;
+        } else {
+          factsArray = [];
+        }
+      }
+      
+      if (factsArray.length > 0) {
+        setAllFacts(factsArray);
+        const randomIndex = Math.floor(Math.random() * factsArray.length);
+        setRandomFact(factsArray[randomIndex]);
       }
     } catch (err) {
       console.error('Failed to fetch facts:', err);
@@ -367,7 +379,10 @@ function Home({ user: propUser }) {
               </div>
               
               {isLoading ? (
-                <div className="loading"><div className="loading-spinner"></div><p>Loading Kenyan history...</p></div>
+                <div style={{ textAlign: 'center', padding: '20px' }}>
+                  <div className="loading-spinner" style={{ margin: '0 auto 16px' }}></div>
+                  <p style={{ color: '#6c757d' }}>Loading Kenyan history...</p>
+                </div>
               ) : randomFact ? (
                 <div style={{ transition: 'all 0.3s ease', opacity: isShuffling ? 0.5 : 1, transform: isShuffling ? 'scale(0.98)' : 'scale(1)' }}>
                   <div style={{ display: 'inline-block', padding: '4px 12px', backgroundColor: '#006B3F', borderRadius: '20px', marginBottom: '12px', fontSize: '11px', fontWeight: '600', color: 'white' }}>
@@ -377,8 +392,11 @@ function Home({ user: propUser }) {
                   <p style={{ lineHeight: '1.6', marginBottom: '20px', color: '#444', fontSize: '14px' }}>{randomFact.content}</p>
                   <button onClick={handleShuffle} disabled={isShuffling} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 20px', backgroundColor: '#006B3F', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: isShuffling ? 'not-allowed' : 'pointer', transition: 'all 0.3s ease', opacity: isShuffling ? 0.6 : 1 }}>
                     <FiRefreshCw size={16} style={{ animation: isShuffling ? 'spin 1s linear infinite' : 'none' }} />
-                    {isShuffling ? 'Loading...' : 'Another Fact'}
+                    {isShuffling ? 'Loading...' : 'Shuffle Fact'}
                   </button>
+                  <Link to="/history" style={{ display: 'inline-block', marginLeft: '12px', padding: '8px 20px', color: '#006B3F', border: '1px solid #006B3F', borderRadius: '6px', textDecoration: 'none', fontWeight: '600' }}>
+                    Read More
+                  </Link>
                 </div>
               ) : null}
             </div>

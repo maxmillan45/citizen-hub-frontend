@@ -10,14 +10,12 @@ function History() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Only working categories from the database
   const categories = [
     { value: 'all', label: 'All', icon: FiBookOpen, color: '#006B3F' },
-    { value: 'precolonial', label: 'Pre-Colonial Era', icon: FiCalendar, color: '#1A1A1A' },
-    { value: 'colonial', label: 'Colonial Era', icon: FiCalendar, color: '#BB0000' },
     { value: 'independence', label: 'Independence Struggle', icon: FiCalendar, color: '#006B3F' },
     { value: 'post_independence', label: 'Post Independence', icon: FiCalendar, color: '#1A1A1A' },
     { value: 'leaders', label: 'Historical Leaders', icon: FiInfo, color: '#BB0000' },
-    { value: 'culture', label: 'Culture & Heritage', icon: FiInfo, color: '#006B3F' },
   ];
 
   useEffect(() => {
@@ -44,14 +42,11 @@ function History() {
     try {
       const response = await getHistoryFacts();
       
-      // Check if response exists
       if (!response || !response.data) {
         throw new Error('No response from server');
       }
       
       const data = response.data;
-      
-      // Extract the results array
       let factsArray = [];
       if (data.results && Array.isArray(data.results)) {
         factsArray = data.results;
@@ -60,8 +55,6 @@ function History() {
       } else {
         factsArray = [];
       }
-      
-      console.log('Facts loaded:', factsArray.length);
       
       setFacts(factsArray);
       setFilteredFacts(factsArray);
