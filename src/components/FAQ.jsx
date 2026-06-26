@@ -20,9 +20,6 @@ function FAQ() {
 
   const categories = [
     { value: 'all', label: 'All Questions', icon: FiHelpCircle, color: '#006B3F', count: 0 },
-    { value: 'arrest', label: 'Arrest & Police', icon: FiHelpCircle, color: '#BB0000', count: 0 },
-    { value: 'land', label: 'Land & Property', icon: FiHelpCircle, color: '#D4A017', count: 0 },
-    { value: 'employment', label: 'Employment', icon: FiHelpCircle, color: '#006B3F', count: 0 },
     { value: 'health', label: 'Health', icon: FiHelpCircle, color: '#BB0000', count: 0 },
     { value: 'education', label: 'Education', icon: FiHelpCircle, color: '#D4A017', count: 0 },
     { value: 'family', label: 'Family', icon: FiHelpCircle, color: '#006B3F', count: 0 },
@@ -31,7 +28,7 @@ function FAQ() {
   ];
 
   useEffect(() => {
-    fetchAllFAQs();
+    fetchFAQs();
   }, []);
 
   useEffect(() => {
@@ -51,12 +48,14 @@ function FAQ() {
     
     setFilteredFaqs(filtered);
     
-    // Update total pages based on filtered results
+    // Update total pages
     setTotalPages(Math.ceil(filtered.length / itemsPerPage));
     setTotalItems(filtered.length);
     
-    // Reset to page 1 when filters change
-    setCurrentPage(1);
+    // Reset to page 1 when filtering
+    if (currentPage > Math.ceil(filtered.length / itemsPerPage)) {
+      setCurrentPage(1);
+    }
     
     const updatedCategories = [...categories];
     updatedCategories[0].count = faqs.length;
@@ -64,9 +63,9 @@ function FAQ() {
       updatedCategories[i].count = faqs.filter(f => f.category === updatedCategories[i].value).length;
     }
     
-  }, [selectedCategory, searchQuery, faqs]);
+  }, [selectedCategory, searchQuery, faqs, itemsPerPage]);
 
-  const fetchAllFAQs = async () => {
+  const fetchFAQs = async () => {
     setLoading(true);
     setError(null);
     try {
@@ -77,51 +76,26 @@ function FAQ() {
       }
       
       const data = response.data;
-      let allFaqs = [];
+      let faqsArray = [];
       
-      // Check if it's a paginated response
       if (data.results && Array.isArray(data.results)) {
-        // Get total count from first response
-        const totalCount = data.count || 0;
-        const pageSize = 50; // Fetch 50 per request
-        
-        // If there are more pages, fetch them all
-        if (totalCount > pageSize) {
-          const totalPagesNeeded = Math.ceil(totalCount / pageSize);
-          
-          // Fetch all pages in parallel
-          const fetchPromises = [];
-          for (let page = 1; page <= totalPagesNeeded; page++) {
-            fetchPromises.push(getFAQs());
-          }
-          
-          const responses = await Promise.all(fetchPromises);
-          
-          // Combine all results
-          responses.forEach(res => {
-            if (res && res.data && res.data.results) {
-              allFaqs = [...allFaqs, ...res.data.results];
-            }
-          });
-        } else {
-          allFaqs = data.results;
-        }
+        faqsArray = data.results;
       } else if (Array.isArray(data)) {
-        allFaqs = data;
+        faqsArray = data;
       } else {
-        allFaqs = [];
+        faqsArray = [];
       }
       
-      setFaqs(allFaqs);
-      setFilteredFaqs(allFaqs);
-      setTotalItems(allFaqs.length);
-      setTotalPages(Math.ceil(allFaqs.length / itemsPerPage));
+      setFaqs(faqsArray);
+      setFilteredFaqs(faqsArray);
+      setTotalItems(faqsArray.length);
+      setTotalPages(Math.ceil(faqsArray.length / itemsPerPage));
       
       // Update category counts
       const updatedCategories = [...categories];
-      updatedCategories[0].count = allFaqs.length;
+      updatedCategories[0].count = faqsArray.length;
       for (let i = 1; i < updatedCategories.length; i++) {
-        updatedCategories[i].count = allFaqs.filter(f => f.category === updatedCategories[i].value).length;
+        updatedCategories[i].count = faqsArray.filter(f => f.category === updatedCategories[i].value).length;
       }
       
     } catch (err) {
@@ -194,7 +168,7 @@ function FAQ() {
           border: '1px solid #FFCDD2'
         }}>
           <p style={{ color: '#BB0000', marginBottom: '16px' }}>{error}</p>
-          <button onClick={() => fetchAllFAQs()} className="btn-secondary" style={{ padding: '10px 24px', cursor: 'pointer' }}>
+          <button onClick={fetchFAQs} className="btn-secondary" style={{ padding: '10px 24px', cursor: 'pointer' }}>
             Try Again
           </button>
         </div>
@@ -472,8 +446,8 @@ function FAQ() {
             })}
           </div>
 
-          {/* Pagination */}
-          {filteredFaqs.length > itemsPerPage && (
+          {/* Pagination - Only show if more than 1 page */}
+          {totalPages > 1 && (
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
@@ -508,58 +482,46 @@ function FAQ() {
                   Previous
                 </button>
                 
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => handlePageChange(pageNum)}
-                        style={{
-                          padding: '8px 14px',
-                          borderRadius: '8px',
-                          border: currentPage === pageNum ? 'none' : '1px solid #ddd',
-                          backgroundColor: currentPage === pageNum ? '#006B3F' : 'white',
-                          color: currentPage === pageNum ? 'white' : '#495057',
-                          cursor: 'pointer',
-                          fontWeight: currentPage === pageNum ? '600' : '400',
-                          minWidth: '40px'
-                        }}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                  
-                  {totalPages > 5 && currentPage < totalPages - 2 && (
-                    <>
-                      <span style={{ padding: '8px 4px', color: '#adb5bd' }}>...</span>
-                      <button
-                        onClick={() => handlePageChange(totalPages)}
-                        style={{
-                          padding: '8px 14px',
-                          borderRadius: '8px',
-                          border: '1px solid #ddd',
-                          backgroundColor: 'white',
-                          color: '#495057',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {totalPages}
-                      </button>
-                    </>
-                  )}
-                </div>
+                {/* Page 1 */}
+                <button
+                  onClick={() => handlePageChange(1)}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: currentPage === 1 ? 'none' : '1px solid #ddd',
+                    backgroundColor: currentPage === 1 ? '#006B3F' : 'white',
+                    color: currentPage === 1 ? 'white' : '#495057',
+                    cursor: 'pointer',
+                    fontWeight: currentPage === 1 ? '600' : '400',
+                    minWidth: '40px'
+                  }}
+                >
+                  1
+                </button>
+                
+                {/* Page 2 (only if totalPages >= 2) */}
+                {totalPages >= 2 && (
+                  <button
+                    onClick={() => handlePageChange(2)}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      border: currentPage === 2 ? 'none' : '1px solid #ddd',
+                      backgroundColor: currentPage === 2 ? '#006B3F' : 'white',
+                      color: currentPage === 2 ? 'white' : '#495057',
+                      cursor: 'pointer',
+                      fontWeight: currentPage === 2 ? '600' : '400',
+                      minWidth: '40px'
+                    }}
+                  >
+                    2
+                  </button>
+                )}
+                
+                {/* Show ellipsis if more than 2 pages */}
+                {totalPages > 2 && currentPage > 2 && (
+                  <span style={{ padding: '0 4px', color: '#adb5bd' }}>...</span>
+                )}
                 
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}

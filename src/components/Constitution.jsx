@@ -193,12 +193,12 @@ function ConstitutionSearch() {
               </button>
               {showSimplified && (
                 <button
-                  onClick={() => setLanguage(language === 'english' ? 'swahili' : 'english')}
+                  onClick={() => setLanguage(language === 'kiswahili' ? 'swahili' : 'english')}
                   className="btn-outline"
                   style={{ padding: '4px 12px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                 >
                   <FiGlobe size={14} />
-                  {language === 'english' ? 'English' : 'Kiswahili'}
+                  {language === 'kiswahili' ? 'English' : 'Kiswahili'}
                 </button>
               )}
             </div>
