@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { initiateSTKPush, checkSTKStatus } from '../services/api';
+import { initiateSTKPush, checkSTKStatus, authenticateWithMPesa } from '../services/api';
 import { FiSmartphone, FiCheckCircle, FiAlertCircle, FiLoader } from 'react-icons/fi';
 
 function MpesaAuth({ onSuccess, onError }) {
@@ -9,6 +9,16 @@ function MpesaAuth({ onSuccess, onError }) {
   const [status, setStatus] = useState(null);
   const [pollingInterval, setPollingInterval] = useState(null);
   const [attempts, setAttempts] = useState(0);
+
+  const formatPhoneNumber = (value) => {
+    let cleaned = value.replace(/\D/g, '');
+    
+    // If starts with 0, keep it (user will enter 0705632334)
+    if (cleaned.length <= 10) {
+      return cleaned;
+    }
+    return cleaned.slice(0, 10);
+  };
 
   const handleInitiatePayment = async (e) => {
     e.preventDefault();
@@ -22,33 +32,44 @@ function MpesaAuth({ onSuccess, onError }) {
     setStatus('initiating');
     
     try {
-      const response = await initiateSTKPush(phoneNumber);
+      // Format phone number to international format (254705632334)
+      let formattedPhone = phoneNumber;
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '254' + formattedPhone.substring(1);
+      }
+      
+      console.log('Initiating STK push for:', formattedPhone);
+      
+      const response = await initiateSTKPush(formattedPhone);
       console.log('STK Push response:', response.data);
       
-      if (response.data && response.data.checkout_request_id) {
-        const checkoutId = response.data.checkout_request_id;
-        setCheckoutId(checkoutId);
+      // Check for CheckoutRequestID in the response
+      const checkoutRequestId = response.data?.CheckoutRequestID;
+      
+      if (checkoutRequestId) {
+        setCheckoutId(checkoutRequestId);
         setStatus('pending');
         setAttempts(0);
         
-        // Wait 5 seconds before starting to poll (gives user time to enter PIN)
+        // Wait 3 seconds before starting to poll
         setTimeout(() => {
-          startPolling(checkoutId);
-        }, 5000);
+          startPolling(checkoutRequestId, formattedPhone);
+        }, 3000);
       } else {
         setStatus('failed');
-        if (onError) onError('Failed to initiate M-Pesa payment');
+        if (onError) onError('Failed to initiate M-Pesa payment. Please try again.');
       }
     } catch (error) {
       console.error('STK Push error:', error);
       setStatus('failed');
-      if (onError) onError(error.response?.data?.error || 'Network error');
+      const errorMsg = error.response?.data?.error || error.message || 'Network error';
+      if (onError) onError(errorMsg);
     } finally {
       setLoading(false);
     }
   };
   
-  const startPolling = (checkoutId) => {
+  const startPolling = (checkoutId, phone) => {
     let pollAttempts = 0;
     const maxAttempts = 30; // 30 attempts * 3 seconds = 90 seconds
     
@@ -61,32 +82,62 @@ function MpesaAuth({ onSuccess, onError }) {
         const response = await checkSTKStatus(checkoutId);
         console.log('Status response:', response.data);
         
-        if (response.data.status === 'success') {
+        const data = response.data;
+        
+        // Check if payment was successful
+        if (data.ResultCode === '0') {
           clearInterval(interval);
           setPollingInterval(null);
-          setStatus('success');
+          setStatus('authenticating');
           
-          if (onSuccess) {
-            onSuccess(response.data);
+          // Authenticate with M-Pesa
+          try {
+            const authResponse = await authenticateWithMPesa(checkoutId, phone);
+            console.log('Auth response:', authResponse.data);
+            
+            if (authResponse.data.success) {
+              setStatus('success');
+              if (onSuccess) {
+                onSuccess(authResponse.data);
+              }
+            } else {
+              setStatus('failed');
+              if (onError) onError(authResponse.data.message || 'Authentication failed');
+            }
+          } catch (authError) {
+            console.error('Auth error:', authError);
+            setStatus('failed');
+            if (onError) onError('Authentication failed. Please try again.');
           }
-        } else if (response.data.status === 'failed') {
+        } 
+        // User cancelled
+        else if (data.ResultCode === '1037') {
+          clearInterval(interval);
+          setPollingInterval(null);
+          setStatus('cancelled');
+          if (onError) onError('Transaction cancelled by user');
+        } 
+        // Transaction failed
+        else if (data.ResultCode === '1032') {
           clearInterval(interval);
           setPollingInterval(null);
           setStatus('failed');
-          if (onError) onError(response.data.message || 'Transaction failed');
-        } else if (pollAttempts >= maxAttempts) {
+          if (onError) onError('Transaction failed. Please try again.');
+        }
+        // Continue polling for pending (ResultCode !== 0)
+        else if (pollAttempts >= maxAttempts) {
           clearInterval(interval);
           setPollingInterval(null);
           setStatus('timeout');
           if (onError) onError('Transaction timeout. Please try again.');
         }
-        // If status is 'pending', continue polling
       } catch (error) {
         console.error('Polling error:', error);
         if (pollAttempts >= maxAttempts) {
           clearInterval(interval);
           setPollingInterval(null);
           setStatus('timeout');
+          if (onError) onError('Transaction timeout. Please try again.');
         }
       }
     }, 3000);
@@ -105,14 +156,6 @@ function MpesaAuth({ onSuccess, onError }) {
     setPhoneNumber('');
   };
   
-  const formatPhoneNumber = (value) => {
-    const cleaned = value.replace(/\D/g, '');
-    if (cleaned.length <= 10) {
-      return cleaned;
-    }
-    return cleaned.slice(0, 10);
-  };
-  
   const getStatusMessage = () => {
     switch (status) {
       case 'initiating':
@@ -124,10 +167,14 @@ function MpesaAuth({ onSuccess, onError }) {
           color: '#ff9800',
           instruction: 'Check your phone for the M-Pesa popup and enter your PIN'
         };
+      case 'authenticating':
+        return { text: 'Payment confirmed. Authenticating...', icon: FiLoader, color: '#0066cc' };
       case 'success':
         return { text: 'Authentication successful! Redirecting...', icon: FiCheckCircle, color: '#4caf50' };
       case 'failed':
         return { text: 'Authentication failed. Please try again.', icon: FiAlertCircle, color: '#f44336' };
+      case 'cancelled':
+        return { text: 'Transaction cancelled by user.', icon: FiAlertCircle, color: '#f44336' };
       case 'timeout':
         return { text: 'Transaction timeout. Please try again.', icon: FiAlertCircle, color: '#f44336' };
       default:
@@ -140,7 +187,7 @@ function MpesaAuth({ onSuccess, onError }) {
   
   return (
     <div>
-      {!checkoutId ? (
+      {!checkoutId || status === 'failed' || status === 'cancelled' || status === 'timeout' ? (
         <form onSubmit={handleInitiatePayment}>
           <div style={{ marginBottom: '16px' }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
@@ -161,9 +208,23 @@ function MpesaAuth({ onSuccess, onError }) {
               }}
             />
             <small style={{ color: '#666', display: 'block', marginTop: '4px' }}>
-              Enter your M-Pesa registered phone number
+              Enter your M-Pesa registered phone number (e.g., 0705632334)
             </small>
           </div>
+          
+          {(status === 'failed' || status === 'cancelled' || status === 'timeout') && (
+            <div style={{
+              backgroundColor: '#ffebee',
+              color: '#c62828',
+              padding: '10px',
+              borderRadius: '8px',
+              marginBottom: '16px',
+              fontSize: '14px',
+              textAlign: 'center'
+            }}>
+              {statusInfo?.text}
+            </div>
+          )}
           
           <button
             type="submit"
@@ -186,7 +247,7 @@ function MpesaAuth({ onSuccess, onError }) {
         </form>
       ) : (
         <div style={{ textAlign: 'center', padding: '20px' }}>
-          <StatusIcon size={48} color={statusInfo?.color} />
+          {StatusIcon && <StatusIcon size={48} color={statusInfo?.color} />}
           <h3 style={{ marginTop: '16px', marginBottom: '8px' }}>{statusInfo?.text}</h3>
           {statusInfo?.instruction && (
             <p style={{ color: '#666', fontSize: '14px' }}>{statusInfo.instruction}</p>
@@ -212,7 +273,7 @@ function MpesaAuth({ onSuccess, onError }) {
               </p>
             </>
           )}
-          {status === 'failed' || status === 'timeout' ? (
+          {status === 'success' && (
             <button
               onClick={resetForm}
               style={{
@@ -225,9 +286,9 @@ function MpesaAuth({ onSuccess, onError }) {
                 cursor: 'pointer'
               }}
             >
-              Try Again
+              Continue
             </button>
-          ) : null}
+          )}
         </div>
       )}
     </div>
