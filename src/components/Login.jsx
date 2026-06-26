@@ -28,10 +28,14 @@ function Login() {
     if (data.access_token) {
       localStorage.setItem('access_token', data.access_token);
       localStorage.setItem('refresh_token', data.refresh_token);
+      localStorage.setItem('user_id', data.user_id);
+      localStorage.setItem('phone_number', data.phone_number);
+      
+      // Redirect based on whether user is new
       if (data.is_new_user) {
         navigate('/complete-profile');
       } else {
-        navigate('/chatbot');
+        navigate('/dashboard');
       }
     }
   };
@@ -122,7 +126,6 @@ function Login() {
             const authResponse = await authenticateWithMPesa(checkoutId, phone);
             console.log('Auth response:', authResponse.data);
             
-            // Check if auth was successful
             if (authResponse.data && authResponse.data.access_token) {
               handleMpesaSuccess(authResponse.data);
             } else {
@@ -130,14 +133,13 @@ function Login() {
             }
           } catch (authErr) {
             console.error('Auth error:', authErr);
-            // If auth fails, try to get token directly
             try {
               console.log('Attempting to get token directly...');
               const tokenResponse = await getToken(phone);
               if (tokenResponse.data.access_token) {
                 localStorage.setItem('access_token', tokenResponse.data.access_token);
                 localStorage.setItem('refresh_token', tokenResponse.data.refresh_token);
-                navigate('/chatbot');
+                navigate('/dashboard');
                 return;
               }
             } catch (tokenErr) {
@@ -184,7 +186,9 @@ function Login() {
       if (response.data.access_token) {
         localStorage.setItem('access_token', response.data.access_token);
         localStorage.setItem('refresh_token', response.data.refresh_token);
-        navigate('/chatbot');
+        localStorage.setItem('user_id', response.data.user_id);
+        localStorage.setItem('phone_number', response.data.phone_number);
+        navigate('/dashboard');
       }
     } catch (err) {
       console.error('Test login error:', err);
