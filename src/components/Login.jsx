@@ -9,30 +9,17 @@ function Login() {
   const [error, setError] = useState(null);
   const [checkoutRequestId, setCheckoutRequestId] = useState('');
   const [step, setStep] = useState('phone');
-  const [debugInfo, setDebugInfo] = useState(null);
   const navigate = useNavigate();
 
   const formatPhoneNumber = (number) => {
-    // Remove all non-digits
     let cleaned = number.replace(/\D/g, '');
-    
-    // If starts with 0, replace with 254
     if (cleaned.startsWith('0')) {
       cleaned = '254' + cleaned.substring(1);
-    }
-    // If starts with 254, keep as is
-    else if (cleaned.startsWith('254')) {
-      // Already in correct format
-    }
-    // If starts with +254, remove the +
-    else if (cleaned.startsWith('254')) {
-      // Already correct
-    }
-    // If it's a 10-digit number starting with 07, format it
-    else if (cleaned.length === 10 && cleaned.startsWith('07')) {
+    } else if (cleaned.startsWith('254') && cleaned.length === 12) {
+      // Already correct format
+    } else if (cleaned.length === 10 && cleaned.startsWith('07')) {
       cleaned = '254' + cleaned.substring(1);
     }
-    
     return cleaned;
   };
 
@@ -77,7 +64,6 @@ function Login() {
     
     setLoading(true);
     setError(null);
-    setDebugInfo(null);
     
     try {
       // Step 1: Get token (creates user if doesn't exist)
@@ -90,7 +76,6 @@ function Login() {
       }
       
       localStorage.setItem('access_token', tokenResponse.data.access_token);
-      setDebugInfo({ step: 'token_received', data: tokenResponse.data });
       
       // Step 2: Initiate STK push
       console.log('Step 2: Initiating STK push for:', formattedNumber);
@@ -104,7 +89,6 @@ function Login() {
       setCheckoutRequestId(stkResponse.data.CheckoutRequestID);
       setStep('stk');
       setLoading(false);
-      setDebugInfo({ step: 'stk_sent', checkoutId: stkResponse.data.CheckoutRequestID });
       
       // Start polling for status
       pollSTKStatus(stkResponse.data.CheckoutRequestID, formattedNumber);
@@ -119,7 +103,7 @@ function Login() {
 
   const pollSTKStatus = async (checkoutId, phone) => {
     let attempts = 0;
-    const maxAttempts = 40; // 40 attempts * 3 seconds = 120 seconds
+    const maxAttempts = 40;
     
     const interval = setInterval(async () => {
       attempts++;
@@ -133,10 +117,34 @@ function Login() {
         if (data.ResultCode === '0') {
           clearInterval(interval);
           console.log('Payment successful! Authenticating...');
-          // Step 3: Authenticate with M-Pesa
-          const authResponse = await authenticateWithMPesa(checkoutId, phone);
-          console.log('Auth response:', authResponse.data);
-          handleMpesaSuccess(authResponse.data);
+          
+          try {
+            const authResponse = await authenticateWithMPesa(checkoutId, phone);
+            console.log('Auth response:', authResponse.data);
+            
+            // Check if auth was successful
+            if (authResponse.data && authResponse.data.access_token) {
+              handleMpesaSuccess(authResponse.data);
+            } else {
+              handleMpesaError(authResponse.data?.message || 'Authentication failed. Please try again.');
+            }
+          } catch (authErr) {
+            console.error('Auth error:', authErr);
+            // If auth fails, try to get token directly
+            try {
+              console.log('Attempting to get token directly...');
+              const tokenResponse = await getToken(phone);
+              if (tokenResponse.data.access_token) {
+                localStorage.setItem('access_token', tokenResponse.data.access_token);
+                localStorage.setItem('refresh_token', tokenResponse.data.refresh_token);
+                navigate('/chatbot');
+                return;
+              }
+            } catch (tokenErr) {
+              console.error('Direct token error:', tokenErr);
+            }
+            handleMpesaError(authErr.response?.data?.error || authErr.message || 'Authentication failed. Please try again.');
+          }
         } else if (data.ResultCode === '1037') {
           clearInterval(interval);
           handleMpesaError('Transaction cancelled by user');
@@ -146,7 +154,6 @@ function Login() {
         }
       } catch (err) {
         console.error('Polling error:', err);
-        // Continue polling if still pending
         if (err.response?.data?.ResultCode === '1' || err.response?.status === 404) {
           // Still pending or not found, continue polling
         } else {
@@ -155,7 +162,6 @@ function Login() {
         }
       }
       
-      // Stop polling after max attempts
       if (attempts >= maxAttempts) {
         clearInterval(interval);
         if (step === 'stk') {
@@ -255,22 +261,6 @@ function Login() {
             textAlign: 'center'
           }}>
             {error}
-          </div>
-        )}
-        
-        {debugInfo && (
-          <div style={{
-            backgroundColor: '#e3f2fd',
-            color: '#0d47a1',
-            padding: '8px',
-            borderRadius: '8px',
-            marginBottom: '16px',
-            fontSize: '11px',
-            textAlign: 'left',
-            overflow: 'auto',
-            maxHeight: '80px'
-          }}>
-            <strong>Debug:</strong> {JSON.stringify(debugInfo, null, 2)}
           </div>
         )}
         
