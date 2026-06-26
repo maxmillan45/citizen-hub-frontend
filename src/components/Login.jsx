@@ -8,8 +8,33 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [checkoutRequestId, setCheckoutRequestId] = useState('');
-  const [step, setStep] = useState('phone'); // 'phone', 'stk', 'complete'
+  const [step, setStep] = useState('phone');
+  const [debugInfo, setDebugInfo] = useState(null);
   const navigate = useNavigate();
+
+  const formatPhoneNumber = (number) => {
+    // Remove all non-digits
+    let cleaned = number.replace(/\D/g, '');
+    
+    // If starts with 0, replace with 254
+    if (cleaned.startsWith('0')) {
+      cleaned = '254' + cleaned.substring(1);
+    }
+    // If starts with 254, keep as is
+    else if (cleaned.startsWith('254')) {
+      // Already in correct format
+    }
+    // If starts with +254, remove the +
+    else if (cleaned.startsWith('254')) {
+      // Already correct
+    }
+    // If it's a 10-digit number starting with 07, format it
+    else if (cleaned.length === 10 && cleaned.startsWith('07')) {
+      cleaned = '254' + cleaned.substring(1);
+    }
+    
+    return cleaned;
+  };
 
   const handleMpesaSuccess = (data) => {
     console.log('M-Pesa success:', data);
@@ -26,48 +51,91 @@ function Login() {
 
   const handleMpesaError = (err) => {
     console.error('M-Pesa error:', err);
-    setError(typeof err === 'string' ? err : 'M-Pesa authentication failed. Please try again.');
+    let errorMessage = 'M-Pesa authentication failed. Please try again.';
+    
+    if (typeof err === 'string') {
+      errorMessage = err;
+    } else if (err.response?.data?.error) {
+      errorMessage = err.response.data.error;
+    } else if (err.response?.data?.message) {
+      errorMessage = err.response.data.message;
+    } else if (err.message) {
+      errorMessage = err.message;
+    }
+    
+    setError(errorMessage);
     setStep('phone');
-    setTimeout(() => setError(null), 5000);
+    setTimeout(() => setError(null), 8000);
   };
 
   const handleSendSTK = async (e) => {
     e.preventDefault();
     if (!phoneNumber) return;
     
+    const formattedNumber = formatPhoneNumber(phoneNumber);
+    console.log('Formatted phone number:', formattedNumber);
+    
     setLoading(true);
     setError(null);
+    setDebugInfo(null);
+    
     try {
       // Step 1: Get token (creates user if doesn't exist)
-      const tokenResponse = await getToken(phoneNumber);
+      console.log('Step 1: Getting token for:', formattedNumber);
+      const tokenResponse = await getToken(formattedNumber);
+      console.log('Token response:', tokenResponse.data);
+      
+      if (!tokenResponse.data.access_token) {
+        throw new Error('Failed to get access token');
+      }
+      
       localStorage.setItem('access_token', tokenResponse.data.access_token);
+      setDebugInfo({ step: 'token_received', data: tokenResponse.data });
       
       // Step 2: Initiate STK push
-      const stkResponse = await initiateSTKPush(phoneNumber);
+      console.log('Step 2: Initiating STK push for:', formattedNumber);
+      const stkResponse = await initiateSTKPush(formattedNumber);
+      console.log('STK response:', stkResponse.data);
+      
+      if (!stkResponse.data.CheckoutRequestID) {
+        throw new Error('Failed to get CheckoutRequestID');
+      }
+      
       setCheckoutRequestId(stkResponse.data.CheckoutRequestID);
       setStep('stk');
       setLoading(false);
+      setDebugInfo({ step: 'stk_sent', checkoutId: stkResponse.data.CheckoutRequestID });
       
       // Start polling for status
-      pollSTKStatus(stkResponse.data.CheckoutRequestID);
+      pollSTKStatus(stkResponse.data.CheckoutRequestID, formattedNumber);
       
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to initiate M-Pesa. Please try again.');
+      console.error('Error in handleSendSTK:', err);
+      setError(err.response?.data?.error || err.message || 'Failed to initiate M-Pesa. Please try again.');
       setLoading(false);
       setTimeout(() => setError(null), 5000);
     }
   };
 
-  const pollSTKStatus = async (checkoutId) => {
+  const pollSTKStatus = async (checkoutId, phone) => {
+    let attempts = 0;
+    const maxAttempts = 40; // 40 attempts * 3 seconds = 120 seconds
+    
     const interval = setInterval(async () => {
+      attempts++;
+      console.log(`Polling attempt ${attempts} for:`, checkoutId);
+      
       try {
         const response = await checkSTKStatus(checkoutId);
         const data = response.data;
+        console.log('Status response:', data);
         
         if (data.ResultCode === '0') {
           clearInterval(interval);
+          console.log('Payment successful! Authenticating...');
           // Step 3: Authenticate with M-Pesa
-          const authResponse = await authenticateWithMPesa(checkoutId, phoneNumber);
+          const authResponse = await authenticateWithMPesa(checkoutId, phone);
+          console.log('Auth response:', authResponse.data);
           handleMpesaSuccess(authResponse.data);
         } else if (data.ResultCode === '1037') {
           clearInterval(interval);
@@ -77,37 +145,43 @@ function Login() {
           handleMpesaError('Transaction failed. Please try again.');
         }
       } catch (err) {
+        console.error('Polling error:', err);
         // Continue polling if still pending
-        if (err.response?.data?.ResultCode === '1') {
+        if (err.response?.data?.ResultCode === '1' || err.response?.status === 404) {
+          // Still pending or not found, continue polling
+        } else {
           clearInterval(interval);
           handleMpesaError('Payment verification failed. Please try again.');
         }
       }
-    }, 3000); // Check every 3 seconds
-    
-    // Stop polling after 120 seconds
-    setTimeout(() => {
-      clearInterval(interval);
-      if (step === 'stk') {
-        handleMpesaError('Payment timed out. Please try again.');
+      
+      // Stop polling after max attempts
+      if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        if (step === 'stk') {
+          handleMpesaError('Payment timed out. Please try again.');
+        }
       }
-    }, 120000);
+    }, 3000);
   };
 
   const handleTestLogin = async (e) => {
     e.preventDefault();
     if (!phoneNumber) return;
     
+    const formattedNumber = formatPhoneNumber(phoneNumber);
     setLoading(true);
     setError(null);
+    
     try {
-      const response = await getToken(phoneNumber);
+      const response = await getToken(formattedNumber);
       if (response.data.access_token) {
         localStorage.setItem('access_token', response.data.access_token);
         localStorage.setItem('refresh_token', response.data.refresh_token);
         navigate('/chatbot');
       }
     } catch (err) {
+      console.error('Test login error:', err);
       setError('Login failed. Please try again.');
       setTimeout(() => setError(null), 5000);
     } finally {
@@ -184,6 +258,22 @@ function Login() {
           </div>
         )}
         
+        {debugInfo && (
+          <div style={{
+            backgroundColor: '#e3f2fd',
+            color: '#0d47a1',
+            padding: '8px',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            fontSize: '11px',
+            textAlign: 'left',
+            overflow: 'auto',
+            maxHeight: '80px'
+          }}>
+            <strong>Debug:</strong> {JSON.stringify(debugInfo, null, 2)}
+          </div>
+        )}
+        
         {useMpesa ? (
           step === 'phone' ? (
             <form onSubmit={handleSendSTK}>
@@ -194,8 +284,8 @@ function Login() {
                 <input
                   type="tel"
                   value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 12))}
-                  placeholder="254705632334"
+                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                  placeholder="0705632334 or 254705632334"
                   disabled={loading}
                   style={{
                     width: '100%',
@@ -205,6 +295,9 @@ function Login() {
                     fontSize: '16px'
                   }}
                 />
+                <p style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+                  Enter phone number (e.g., 0705632334 or 254705632334)
+                </p>
               </div>
               <button
                 type="submit"
@@ -268,8 +361,8 @@ function Login() {
               <input
                 type="tel"
                 value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 12))}
-                placeholder="254705632334"
+                onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                placeholder="0705632334 or 254705632334"
                 disabled={loading}
                 style={{
                   width: '100%',
