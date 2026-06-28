@@ -1,15 +1,17 @@
+// src/components/Login.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getToken, initiateSTKPush, authenticateWithMPesa, checkSTKStatus } from '../services/api';
+import { getToken, initiateSTKPush, waitForPayment } from '../services/api';
+import { FiSmartphone, FiUser, FiCheckCircle, FiAlertCircle, FiClock } from 'react-icons/fi';
 
-function Login() {
+function Login({ onLogin }) {
+  const navigate = useNavigate();
   const [useMpesa, setUseMpesa] = useState(true);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [checkoutRequestId, setCheckoutRequestId] = useState('');
   const [step, setStep] = useState('phone');
-  const navigate = useNavigate();
+  const [waitingTime, setWaitingTime] = useState(0);
 
   const formatPhoneNumber = (number) => {
     let cleaned = number.replace(/\D/g, '');
@@ -23,40 +25,32 @@ function Login() {
     return cleaned;
   };
 
-  const handleMpesaSuccess = (data) => {
-    console.log('M-Pesa success:', data);
+  const handleLoginSuccess = (data) => {
     if (data.access_token) {
       localStorage.setItem('access_token', data.access_token);
+    }
+    if (data.refresh_token) {
       localStorage.setItem('refresh_token', data.refresh_token);
+    }
+    if (data.user_id) {
       localStorage.setItem('user_id', data.user_id);
+    }
+    if (data.phone_number) {
       localStorage.setItem('phone_number', data.phone_number);
-      
-      // Redirect based on whether user is new
-      if (data.is_new_user) {
-        navigate('/complete-profile');
-      } else {
-        navigate('/dashboard');
-      }
-    }
-  };
-
-  const handleMpesaError = (err) => {
-    console.error('M-Pesa error:', err);
-    let errorMessage = 'M-Pesa authentication failed. Please try again.';
-    
-    if (typeof err === 'string') {
-      errorMessage = err;
-    } else if (err.response?.data?.error) {
-      errorMessage = err.response.data.error;
-    } else if (err.response?.data?.message) {
-      errorMessage = err.response.data.message;
-    } else if (err.message) {
-      errorMessage = err.message;
     }
     
-    setError(errorMessage);
-    setStep('phone');
-    setTimeout(() => setError(null), 8000);
+    const isNewUser = data.is_new_user === true;
+    localStorage.setItem('is_new_user', isNewUser ? 'true' : 'false');
+    
+    if (onLogin) {
+      onLogin(data);
+    }
+    
+    if (isNewUser) {
+      navigate('/complete-profile');
+    } else {
+      navigate('/');
+    }
   };
 
   const handleSendSTK = async (e) => {
@@ -64,113 +58,53 @@ function Login() {
     if (!phoneNumber) return;
     
     const formattedNumber = formatPhoneNumber(phoneNumber);
-    console.log('Formatted phone number:', formattedNumber);
-    
     setLoading(true);
     setError(null);
+    setStep('stk');
+    setWaitingTime(0);
+    
+    const timer = setInterval(() => {
+      setWaitingTime(prev => prev + 1);
+    }, 1000);
     
     try {
-      // Step 1: Get token (creates user if doesn't exist)
-      console.log('Step 1: Getting token for:', formattedNumber);
       const tokenResponse = await getToken(formattedNumber);
-      console.log('Token response:', tokenResponse.data);
-      
       if (!tokenResponse.data.access_token) {
         throw new Error('Failed to get access token');
       }
-      
       localStorage.setItem('access_token', tokenResponse.data.access_token);
       
-      // Step 2: Initiate STK push
-      console.log('Step 2: Initiating STK push for:', formattedNumber);
       const stkResponse = await initiateSTKPush(formattedNumber);
-      console.log('STK response:', stkResponse.data);
-      
       if (!stkResponse.data.CheckoutRequestID) {
         throw new Error('Failed to get CheckoutRequestID');
       }
       
-      setCheckoutRequestId(stkResponse.data.CheckoutRequestID);
-      setStep('stk');
-      setLoading(false);
+      const waitResponse = await waitForPayment(
+        stkResponse.data.CheckoutRequestID,
+        formattedNumber
+      );
       
-      // Start polling for status
-      pollSTKStatus(stkResponse.data.CheckoutRequestID, formattedNumber);
+      clearInterval(timer);
       
+      if (waitResponse.data.success) {
+        handleLoginSuccess(waitResponse.data);
+      } else {
+        setError(waitResponse.data.message || 'Payment failed');
+        setStep('phone');
+        setLoading(false);
+      }
     } catch (err) {
-      console.error('Error in handleSendSTK:', err);
-      setError(err.response?.data?.error || err.message || 'Failed to initiate M-Pesa. Please try again.');
+      clearInterval(timer);
+      console.error('Login error:', err);
+      
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        setError('Payment is taking longer than expected. Please check your phone and try again.');
+      } else {
+        setError(err.response?.data?.message || err.message || 'Login failed. Please try again.');
+      }
+      setStep('phone');
       setLoading(false);
-      setTimeout(() => setError(null), 5000);
     }
-  };
-
-  const pollSTKStatus = async (checkoutId, phone) => {
-    let attempts = 0;
-    const maxAttempts = 40;
-    
-    const interval = setInterval(async () => {
-      attempts++;
-      console.log(`Polling attempt ${attempts} for:`, checkoutId);
-      
-      try {
-        const response = await checkSTKStatus(checkoutId);
-        const data = response.data;
-        console.log('Status response:', data);
-        
-        if (data.ResultCode === '0') {
-          clearInterval(interval);
-          console.log('Payment successful! Authenticating...');
-          
-          try {
-            const authResponse = await authenticateWithMPesa(checkoutId, phone);
-            console.log('Auth response:', authResponse.data);
-            
-            if (authResponse.data && authResponse.data.access_token) {
-              handleMpesaSuccess(authResponse.data);
-            } else {
-              handleMpesaError(authResponse.data?.message || 'Authentication failed. Please try again.');
-            }
-          } catch (authErr) {
-            console.error('Auth error:', authErr);
-            try {
-              console.log('Attempting to get token directly...');
-              const tokenResponse = await getToken(phone);
-              if (tokenResponse.data.access_token) {
-                localStorage.setItem('access_token', tokenResponse.data.access_token);
-                localStorage.setItem('refresh_token', tokenResponse.data.refresh_token);
-                navigate('/dashboard');
-                return;
-              }
-            } catch (tokenErr) {
-              console.error('Direct token error:', tokenErr);
-            }
-            handleMpesaError(authErr.response?.data?.error || authErr.message || 'Authentication failed. Please try again.');
-          }
-        } else if (data.ResultCode === '1037') {
-          clearInterval(interval);
-          handleMpesaError('Transaction cancelled by user');
-        } else if (data.ResultCode === '1032') {
-          clearInterval(interval);
-          handleMpesaError('Transaction failed. Please try again.');
-        }
-      } catch (err) {
-        console.error('Polling error:', err);
-        if (err.response?.data?.ResultCode === '1' || err.response?.status === 404) {
-          // Still pending or not found, continue polling
-        } else {
-          clearInterval(interval);
-          handleMpesaError('Payment verification failed. Please try again.');
-        }
-      }
-      
-      if (attempts >= maxAttempts) {
-        clearInterval(interval);
-        if (step === 'stk') {
-          handleMpesaError('Payment timed out. Please try again.');
-        }
-      }
-    }, 3000);
   };
 
   const handleTestLogin = async (e) => {
@@ -184,14 +118,15 @@ function Login() {
     try {
       const response = await getToken(formattedNumber);
       if (response.data.access_token) {
-        localStorage.setItem('access_token', response.data.access_token);
-        localStorage.setItem('refresh_token', response.data.refresh_token);
-        localStorage.setItem('user_id', response.data.user_id);
-        localStorage.setItem('phone_number', response.data.phone_number);
-        navigate('/dashboard');
+        handleLoginSuccess({
+          access_token: response.data.access_token,
+          refresh_token: response.data.refresh_token,
+          user_id: response.data.user_id,
+          phone_number: response.data.phone_number,
+          is_new_user: response.data.is_new_user || false
+        });
       }
     } catch (err) {
-      console.error('Test login error:', err);
       setError('Login failed. Please try again.');
       setTimeout(() => setError(null), 5000);
     } finally {
@@ -216,7 +151,18 @@ function Login() {
         boxShadow: '0 10px 40px rgba(0,0,0,0.1)'
       }}>
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '8px' }}>🇰🇪</div>
+          <div style={{ 
+            width: '64px', 
+            height: '64px', 
+            backgroundColor: '#E8F5E9', 
+            borderRadius: '50%', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            margin: '0 auto 12px'
+          }}>
+            <FiUser size={32} color="#006B3F" />
+          </div>
           <h1 style={{ marginBottom: '8px', color: '#1A1A1A' }}>Citizen Hub</h1>
           <p style={{ color: '#666' }}>Sign in to access legal assistance</p>
         </div>
@@ -235,6 +181,7 @@ function Login() {
               fontWeight: '500'
             }}
           >
+            <FiSmartphone size={14} style={{ marginRight: '6px' }} />
             M-Pesa (KES 1)
           </button>
           <button
@@ -250,6 +197,7 @@ function Login() {
               fontWeight: '500'
             }}
           >
+            <FiCheckCircle size={14} style={{ marginRight: '6px' }} />
             Test Login (Free)
           </button>
         </div>
@@ -264,6 +212,7 @@ function Login() {
             fontSize: '14px',
             textAlign: 'center'
           }}>
+            <FiAlertCircle size={16} style={{ marginRight: '8px' }} />
             {error}
           </div>
         )}
@@ -289,9 +238,6 @@ function Login() {
                     fontSize: '16px'
                   }}
                 />
-                <p style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
-                  Enter phone number (e.g., 0705632334 or 254705632334)
-                </p>
               </div>
               <button
                 type="submit"
@@ -306,15 +252,20 @@ function Login() {
                   fontSize: '16px',
                   fontWeight: '600',
                   cursor: loading ? 'not-allowed' : 'pointer',
-                  opacity: loading ? 0.7 : 1
+                  opacity: loading ? 0.7 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
                 }}
               >
+                <FiSmartphone size={18} />
                 {loading ? 'Sending STK...' : 'Login with M-Pesa'}
               </button>
             </form>
           ) : (
             <div style={{ textAlign: 'center' }}>
-              <p>📱 Check your phone</p>
+              <p style={{ fontSize: '18px', marginBottom: '8px' }}>Check your phone</p>
               <p style={{ color: '#666', fontSize: '14px' }}>
                 Enter your M-Pesa PIN when prompted
               </p>
@@ -328,8 +279,11 @@ function Login() {
                 alignItems: 'center',
                 gap: '10px'
               }}>
-                <span>⏳</span>
+                <FiClock size={20} color="#006B3F" />
                 <span>Waiting for confirmation...</span>
+                <span style={{ fontSize: '12px', color: '#999' }}>
+                  ({waitingTime}s)
+                </span>
               </div>
               <button
                 onClick={() => { setStep('phone'); setLoading(false); }}

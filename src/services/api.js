@@ -1,11 +1,13 @@
 // src/services/api.js
 import axios from 'axios';
 
-const API_URL = 'https://citizen-hub-kenya-backend.onrender.com';
+// Use environment variable or fallback to Render URL
+const API_URL = process.env.REACT_APP_API_URL || 'https://citizen-hub-kenya-backend.onrender.com';
 
 const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
+  timeout: 120000,
 });
 
 api.interceptors.request.use((config) => {
@@ -16,23 +18,13 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Helper function to extract data from response
-const extractData = (response) => {
-  // If response has results array, return it
-  if (response.data && response.data.results) {
-    return response.data.results;
-  }
-  // If response is an array, return it
-  if (Array.isArray(response.data)) {
-    return response.data;
-  }
-  // Otherwise return empty array
-  return [];
-};
-
 // ============ AUTHENTICATION ============
 export const getToken = (phone_number) => 
   api.post('/api/get-token/', { phone_number });
+
+// src/services/api.js - add this function
+export const waitForPayment = (checkout_request_id, phone_number) => 
+  api.post('/api/auth/stk/wait/', { checkout_request_id, phone_number });
 
 export const completeProfile = (data) => 
   api.post('/api/auth/complete-profile/', data);
@@ -43,8 +35,13 @@ export const getProfile = () =>
 export const updateProfile = (data) => 
   api.patch('/api/auth/profile/', data);
 
-export const logout = () => 
-  api.post('/api/auth/logout/', {});
+export const logout = () => {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('user_id');
+  localStorage.removeItem('phone_number');
+  return Promise.resolve();
+};
 
 // ============ M-PESA ============
 export const initiateSTKPush = (phone_number, amount = '1') => 
@@ -66,7 +63,7 @@ export const authenticateWithMPesa = (checkout_request_id, phone_number) =>
 
 // ============ CONSTITUTION ============
 export const searchConstitution = (query, topic = '') => {
-  let url = `/api/constitution/search/?q=${query}`;
+  let url = `/api/constitution/search/?q=${encodeURIComponent(query)}`;
   if (topic) url += `&topic=${topic}`;
   return api.get(url);
 };
@@ -82,11 +79,8 @@ export const getChatHistory = () =>
   api.get('/api/chatbot/history/');
 
 // ============ FEATURES ============
-export const getHistoryFacts = (page = 1, pageSize = 20) => 
+export const getHistoryFacts = (page = 1, pageSize = 50) => 
   api.get(`/api/auth/history/?page=${page}&page_size=${pageSize}`);
-
-export const getHistoryFactsByCategory = (category) => 
-  api.get(`/api/auth/history/?category=${category}`);
 
 export const getFAQs = (category = '') => 
   api.get(`/api/auth/faq/${category ? `?category=${category}` : ''}`);
@@ -94,8 +88,7 @@ export const getFAQs = (category = '') =>
 export const getFAQ = (id) => 
   api.get(`/api/auth/faq/${id}/`);
 
-// In src/services/api.js - replace the getMPs function with this:
-export const getMPs = (page = 1, pageSize = 20) => {
+export const getMPs = (page = 1, pageSize = 100) => {
   let url = '/api/auth/mp/';
   const params = new URLSearchParams();
   params.append('page', page);
@@ -141,4 +134,3 @@ export const healthCheck = () =>
   api.get('/health/');
 
 export default api;
-
