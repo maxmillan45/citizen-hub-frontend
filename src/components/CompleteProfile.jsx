@@ -1,6 +1,7 @@
 // src/components/CompleteProfile.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { completeProfile } from '../services/api';
 import { FiUser, FiMail, FiGlobe, FiSave, FiCheckCircle } from 'react-icons/fi';
 
 function CompleteProfile() {
@@ -22,100 +23,44 @@ function CompleteProfile() {
     });
   };
 
-  const getFreshToken = async () => {
-    try {
-      const phone = localStorage.getItem('phone_number') || '254705632334';
-      const response = await fetch('http://localhost:8000/api/get-token/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone_number: phone })
-      });
-      const data = await response.json();
-      if (data.access_token) {
-        localStorage.setItem('access_token', data.access_token);
-        return data.access_token;
-      }
-      return null;
-    } catch (err) {
-      console.error('Failed to refresh token:', err);
-      return null;
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     
     try {
-      let token = localStorage.getItem('access_token');
-      
-      if (!token) {
-        token = await getFreshToken();
-        if (!token) {
-          setError('Please login again');
-          setLoading(false);
-          return;
-        }
-      }
-
       const payload = {
         first_name: formData.first_name,
         last_name: formData.last_name,
         email: formData.email,
         language: formData.language
       };
-
-      let response = await fetch('http://localhost:8000/api/auth/complete-profile/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      // If token expired, refresh and retry
-      if (response.status === 401) {
-        const newToken = await getFreshToken();
-        if (newToken) {
-          response = await fetch('http://localhost:8000/api/auth/complete-profile/', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${newToken}`
-            },
-            body: JSON.stringify(payload)
-          });
-        }
-      }
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess(true);
-        localStorage.setItem('is_new_user', 'false');
-        
-        const userData = JSON.parse(localStorage.getItem('user') || '{}');
-        const updatedUser = {
-          ...userData,
-          first_name: formData.first_name,
-          last_name: formData.last_name,
-          email: formData.email,
-          language: formData.language
-        };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        
-        setTimeout(() => {
-          navigate('/');
-        }, 1500);
-      } else {
-        setError(data.error || data.message || 'Failed to save profile');
-        setLoading(false);
-      }
+      
+      console.log('Sending profile data:', payload);
+      
+      const response = await completeProfile(payload);
+      console.log('Profile saved:', response.data);
+      
+      setSuccess(true);
+      localStorage.setItem('is_new_user', 'false');
+      
+      // Update user in localStorage
+      const userData = JSON.parse(localStorage.getItem('user') || '{}');
+      const updatedUser = {
+        ...userData,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        language: formData.language
+      };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      
+      setTimeout(() => {
+        navigate('/');
+      }, 1500);
     } catch (err) {
-      console.error('Error:', err);
-      setError('Network error. Make sure backend is running.');
+      console.error('Error saving profile:', err);
+      setError(err.response?.data?.error || err.message || 'Failed to save profile. Please try again.');
       setLoading(false);
     }
   };

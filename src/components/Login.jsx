@@ -68,21 +68,24 @@ function Login({ onLogin }) {
     }, 1000);
     
     try {
+      // Step 1: Get token
       const tokenResponse = await getToken(formattedNumber);
       if (!tokenResponse.data.access_token) {
         throw new Error('Failed to get access token');
       }
       localStorage.setItem('access_token', tokenResponse.data.access_token);
       
+      // Step 2: Initiate STK push
       const stkResponse = await initiateSTKPush(formattedNumber);
       if (!stkResponse.data.CheckoutRequestID) {
         throw new Error('Failed to get CheckoutRequestID');
       }
       
-      const waitResponse = await waitForPayment(
-        stkResponse.data.CheckoutRequestID,
-        formattedNumber
-      );
+      const checkoutId = stkResponse.data.CheckoutRequestID;
+      console.log('CheckoutRequestID:', checkoutId);
+      
+      // Step 3: Use the waitForPayment endpoint (handles polling on backend)
+      const waitResponse = await waitForPayment(checkoutId, formattedNumber);
       
       clearInterval(timer);
       
@@ -93,15 +96,11 @@ function Login({ onLogin }) {
         setStep('phone');
         setLoading(false);
       }
+      
     } catch (err) {
       clearInterval(timer);
       console.error('Login error:', err);
-      
-      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
-        setError('Payment is taking longer than expected. Please check your phone and try again.');
-      } else {
-        setError(err.response?.data?.message || err.message || 'Login failed. Please try again.');
-      }
+      setError(err.response?.data?.message || err.message || 'Login failed. Please try again.');
       setStep('phone');
       setLoading(false);
     }
