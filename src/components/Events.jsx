@@ -26,8 +26,7 @@ function Events() {
   const [showSubscribeMessage, setShowSubscribeMessage] = useState(false);
 
   const locations = [
-    'all', 'Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Kiambu', 
-    'Uasin Gishu', 'Kakamega', 'Machakos', 'Meru', 'Nyeri'
+    'all', 'Nairobi'
   ];
 
   const categories = [

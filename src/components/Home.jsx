@@ -292,44 +292,6 @@ function Home({ user: propUser }) {
         </div>
       </div>
 
-      {user && (
-        <div style={{ backgroundColor: '#E8F5E9', padding: '24px 0', borderBottom: '1px solid #c8e6c9' }}>
-          <div className="container">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-              <div>
-                <h3 style={{ fontSize: '20px', marginBottom: '4px', color: '#1A1A1A' }}>Welcome to Your Civic Dashboard</h3>
-                <p style={{ color: '#555', fontSize: '14px' }}>Track your civic engagement and access personalized services</p>
-              </div>
-              <div style={{ display: 'flex', gap: '24px' }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#006B3F' }}>{userStats.civic_points}</div>
-                  <div style={{ fontSize: '11px', color: '#666' }}>Civic Points</div>
-                  <div style={{ fontSize: '10px', color: '#006B3F', marginTop: '4px' }}>{userStats.user_level}</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#006B3F' }}>{userStats.reports_filed}</div>
-                  <div style={{ fontSize: '11px', color: '#666' }}>Reports Filed</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#006B3F' }}>{userStats.events_attended}</div>
-                  <div style={{ fontSize: '11px', color: '#666' }}>Events Attended</div>
-                </div>
-              </div>
-            </div>
-            {userStats.next_level_points > 0 && (
-              <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#F5F0E8', borderRadius: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                  <span style={{ fontSize: '13px', color: '#555' }}>{userStats.next_level_points} points needed for {userStats.user_level === 'Bronze Citizen' ? 'Silver Citizen' : userStats.user_level === 'Silver Citizen' ? 'Gold Citizen' : 'Platinum Citizen'}</span>
-                  <div style={{ flex: 1, height: '6px', backgroundColor: '#ddd', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{ width: `${(userStats.civic_points % 100)}%`, height: '100%', backgroundColor: '#006B3F' }}></div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       <div style={{ backgroundColor: 'white', padding: '48px 0', borderBottom: '1px solid #eee' }}>
         <div className="container">
           <div className="grid grid-4">
