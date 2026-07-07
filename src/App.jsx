@@ -16,6 +16,7 @@ import Crime from './components/Crime';
 import Events from './components/Events';
 import Footer from './components/Footer';
 import DidYouKnow from './components/DidYouKnow';
+import Profile from './components/Profile';
 
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('access_token');
@@ -45,7 +46,7 @@ const AppRedirects = ({ children }) => {
     // If user is not logged in and trying to access protected pages, redirect to login
     if (!token && path !== '/login' && path !== '/complete-profile') {
       // Allow public pages to be accessed without login
-      const publicPages = ['/', '/constitution', '/history', '/faq', '/mps', '/events', '/did-you-know'];
+      const publicPages = ['/', '/constitution', '/history', '/faq', '/mps', '/events', '/did-you-know', '/profile'];
       if (!publicPages.includes(path)) {
         navigate('/login');
       }
@@ -113,7 +114,14 @@ function App() {
             <Route path="/events" element={<Events />} />
             <Route path="/did-you-know" element={<DidYouKnow />} />
             
-            {/* Profile - accessible only for new users */}
+            {/* Profile - accessible for logged in users */}
+            <Route path="/profile" element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            } />
+            
+            {/* Complete Profile - accessible only for new users */}
             <Route path="/complete-profile" element={<CompleteProfile />} />
             
             {/* Protected Routes - require login */}
