@@ -24,9 +24,18 @@ function Events() {
   const [savedEvents, setSavedEvents] = useState([]);
   const [attendingEvents, setAttendingEvents] = useState([]);
   const [showSubscribeMessage, setShowSubscribeMessage] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
 
+  // Kenyan counties and major cities
   const locations = [
-    'all', 'Nairobi'
+    'all', 'Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'Thika', 
+    'Malindi', 'Kitale', 'Garissa', 'Nyeri', 'Meru', 'Embu', 'Kericho',
+    'Kakamega', 'Bungoma', 'Busia', 'Homa Bay', 'Kisii', 'Migori',
+    'Kilifi', 'Kwale', 'Lamu', 'Taita Taveta', 'Machakos', 'Kajiado',
+    'Kiambu', 'Muranga', 'Nyandarua', 'Laikipia', 'Narok', 'Bomet',
+    'Kericho', 'Nandi', 'Uasin Gishu', 'Trans Nzoia', 'Turkana',
+    'West Pokot', 'Samburu', 'Isiolo', 'Marsabit', 'Mandera',
+    'Wajir', 'Tana River', 'Lamu', 'Kwale', 'Kilifi'
   ];
 
   const categories = [
@@ -39,14 +48,20 @@ function Events() {
     { value: 'government', label: 'Government', color: '#006B3F' },
     { value: 'health', label: 'Health', color: '#BB0000' },
     { value: 'environment', label: 'Environment', color: '#006B3F' },
+    { value: 'tax', label: 'Tax', color: '#1A1A1A' },
+    { value: 'agriculture', label: 'Agriculture', color: '#D4A017' },
+    { value: 'culture', label: 'Culture & Heritage', color: '#006B3F' },
+    { value: 'civic', label: 'Civic', color: '#006B3F' },
   ];
 
   useEffect(() => {
     fetchEvents();
     const saved = localStorage.getItem('saved_events');
     const attending = localStorage.getItem('attending_events');
+    const subscribed = localStorage.getItem('events_subscribed');
     if (saved) setSavedEvents(JSON.parse(saved));
     if (attending) setAttendingEvents(JSON.parse(attending));
+    if (subscribed) setIsSubscribed(JSON.parse(subscribed));
   }, []);
 
   useEffect(() => {
@@ -60,6 +75,7 @@ function Events() {
       filtered = filtered.filter(e => e.location && e.location.includes(selectedLocation));
     }
     
+    // Sort by date (upcoming first)
     filtered.sort((a, b) => new Date(a.date) - new Date(b.date));
     
     setFilteredEvents(filtered);
@@ -109,6 +125,9 @@ function Events() {
   };
 
   const handleSubscribe = () => {
+    const newStatus = !isSubscribed;
+    setIsSubscribed(newStatus);
+    localStorage.setItem('events_subscribed', JSON.stringify(newStatus));
     setShowSubscribeMessage(true);
     setTimeout(() => {
       setShowSubscribeMessage(false);
@@ -125,6 +144,10 @@ function Events() {
       'government': { bg: '#006B3F', label: 'Government' },
       'health': { bg: '#BB0000', label: 'Health' },
       'environment': { bg: '#006B3F', label: 'Environment' },
+      'tax': { bg: '#1A1A1A', label: 'Tax' },
+      'agriculture': { bg: '#D4A017', label: 'Agriculture' },
+      'culture': { bg: '#006B3F', label: 'Culture' },
+      'civic': { bg: '#006B3F', label: 'Civic' },
     };
     return styles[category] || { bg: '#6c757d', label: 'Event' };
   };
@@ -151,7 +174,11 @@ function Events() {
       'parliament': 'Parliament',
       'government': 'Government',
       'health': 'Health',
-      'environment': 'Environment'
+      'environment': 'Environment',
+      'tax': 'Tax',
+      'agriculture': 'Agriculture',
+      'culture': 'Culture',
+      'civic': 'Civic'
     };
     return labels[category] || category;
   };
@@ -177,7 +204,7 @@ function Events() {
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="btn-outline"
-            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}
           >
             <FiFilter size={16} />
             {showFilters ? 'Hide Filters' : 'Show Filters'}
@@ -189,7 +216,7 @@ function Events() {
                 setSelectedLocation('all');
               }}
               className="btn-secondary"
-              style={{ padding: '6px 12px', fontSize: '12px' }}
+              style={{ padding: '6px 12px', fontSize: '12px', background: 'none', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer' }}
             >
               Clear All Filters
             </button>
@@ -203,7 +230,7 @@ function Events() {
                 <FiMapPin size={14} style={{ marginRight: '6px' }} />
                 Location
               </label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '150px', overflowY: 'auto' }}>
                 {locations.map(location => (
                   <button
                     key={location}
@@ -215,7 +242,7 @@ function Events() {
                       backgroundColor: selectedLocation === location ? '#006B3F' : 'white',
                       color: selectedLocation === location ? 'white' : '#495057',
                       cursor: 'pointer',
-                      fontSize: '13px',
+                      fontSize: '12px',
                       transition: 'all 0.2s ease'
                     }}
                   >
@@ -242,7 +269,7 @@ function Events() {
                       backgroundColor: selectedCategory === cat.value ? cat.color : 'white',
                       color: selectedCategory === cat.value ? 'white' : '#495057',
                       cursor: 'pointer',
-                      fontSize: '13px',
+                      fontSize: '12px',
                       transition: 'all 0.2s ease'
                     }}
                   >
@@ -284,7 +311,7 @@ function Events() {
           border: '1px solid #FFCDD2'
         }}>
           <p style={{ color: '#BB0000', marginBottom: '16px' }}>{error}</p>
-          <button onClick={fetchEvents} className="btn-secondary">
+          <button onClick={fetchEvents} className="btn-secondary" style={{ background: 'none', border: '1px solid #ddd', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer' }}>
             <FiRefreshCw size={16} style={{ marginRight: '8px' }} /> Try Again
           </button>
         </div>
@@ -316,7 +343,11 @@ function Events() {
                   padding: '0',
                   overflow: 'hidden',
                   transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                  position: 'relative'
+                  position: 'relative',
+                  background: 'white',
+                  borderRadius: '12px',
+                  border: '1px solid #f0f0f0',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
                 }}
               >
                 <div style={{ 
@@ -391,7 +422,7 @@ function Events() {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#6c757d' }}>
                       <FiMapPin size={16} style={{ flexShrink: 0 }} />
-                      <span style={{ fontSize: '14px' }}>{event.location}</span>
+                      <span style={{ fontSize: '14px' }}>{event.location || 'Nationwide'}</span>
                     </div>
                     {event.organizer && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#6c757d' }}>
@@ -415,7 +446,8 @@ function Events() {
                   <p style={{ 
                     lineHeight: '1.6', 
                     color: '#495057',
-                    marginBottom: '20px'
+                    marginBottom: '20px',
+                    fontSize: '14px'
                   }}>
                     {event.description}
                   </p>
@@ -430,7 +462,14 @@ function Events() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '8px',
-                        backgroundColor: isAttending ? '#1A1A1A' : '#006B3F'
+                        backgroundColor: isAttending ? '#1A1A1A' : '#006B3F',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        fontSize: '14px'
                       }}
                     >
                       <FiUsers size={16} />
@@ -447,7 +486,14 @@ function Events() {
                         justifyContent: 'center',
                         gap: '8px',
                         backgroundColor: '#6c757d',
-                        cursor: 'not-allowed'
+                        cursor: 'not-allowed',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        fontWeight: '600',
+                        fontSize: '14px',
+                        opacity: 0.7
                       }}
                       disabled
                     >
@@ -478,10 +524,22 @@ function Events() {
           <button 
             onClick={handleSubscribe}
             className="btn-primary" 
-            style={{ backgroundColor: 'white', color: '#006B3F', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            style={{ 
+              backgroundColor: 'white', 
+              color: '#006B3F', 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '8px',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '12px 24px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '14px'
+            }}
           >
             <FiBell size={16} />
-            Subscribe to Updates
+            {isSubscribed ? 'Unsubscribe from Updates' : 'Subscribe to Updates'}
           </button>
           {showSubscribeMessage && (
             <div style={{ 
@@ -491,7 +549,9 @@ function Events() {
               borderRadius: '8px',
               fontSize: '14px'
             }}>
-              Thank you for subscribing! You will receive notifications about upcoming events.
+              {isSubscribed 
+                ? 'You have successfully subscribed! You will receive notifications about upcoming events.' 
+                : 'You have unsubscribed from event notifications.'}
             </div>
           )}
         </div>

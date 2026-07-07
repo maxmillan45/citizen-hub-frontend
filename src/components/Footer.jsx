@@ -231,52 +231,9 @@ function Footer() {
             })}
           </ul>
           
-          <h4 style={{ 
-            fontSize: '14px', 
-            fontWeight: '600', 
-            marginBottom: '12px',
-            color: '#F5F5F5'
-          }}>
-            Stay Updated
-          </h4>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input 
-              type="email" 
-              placeholder="Your email address"
-              style={{
-                flex: 1,
-                padding: '10px 12px',
-                backgroundColor: '#2A2A2A',
-                border: '1px solid #404040',
-                borderRadius: '6px',
-                color: '#F5F5F5',
-                fontSize: '14px',
-                outline: 'none'
-              }}
-            />
-            <button 
-              style={{
-                padding: '10px 16px',
-                backgroundColor: '#006B3F',
-                border: 'none',
-                borderRadius: '6px',
-                color: 'white',
-                fontSize: '14px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                transition: 'background-color 0.3s ease'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#004D2E'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#006B3F'}
-            >
-              Subscribe
-            </button>
-          </div>
-          <p style={{ fontSize: '11px', color: '#666', marginTop: '8px' }}>
-            Get updates on civic events and new features
-          </p>
         </div>
       </div>
+      
 
       {/* Bottom Bar */}
       <div style={{ 
