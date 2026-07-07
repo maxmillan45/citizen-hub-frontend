@@ -1,7 +1,7 @@
 // src/components/CompleteProfile.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { completeProfile } from '../services/api';
+import { completeProfile, getProfile } from '../services/api';
 import { FiUser, FiMail, FiGlobe, FiSave, FiCheckCircle } from 'react-icons/fi';
 
 function CompleteProfile() {
@@ -42,18 +42,19 @@ function CompleteProfile() {
       console.log('Profile saved:', response.data);
       
       setSuccess(true);
+      
+      // Mark user as not new
       localStorage.setItem('is_new_user', 'false');
       
-      // Update user in localStorage
-      const userData = JSON.parse(localStorage.getItem('user') || '{}');
-      const updatedUser = {
-        ...userData,
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        email: formData.email,
-        language: formData.language
-      };
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      // Fetch updated user profile
+      try {
+        const profileResponse = await getProfile();
+        if (profileResponse.data) {
+          localStorage.setItem('user', JSON.stringify(profileResponse.data));
+        }
+      } catch (profileErr) {
+        console.warn('Could not fetch updated profile:', profileErr);
+      }
       
       setTimeout(() => {
         navigate('/');
