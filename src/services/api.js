@@ -10,19 +10,70 @@ const api = axios.create({
   timeout: 120000,
 });
 
+// List of public endpoints that don't need authentication
+const PUBLIC_ENDPOINTS = [
+  '/api/auth/history/',
+  '/api/auth/faq/',
+  '/api/auth/mp/',
+  '/api/auth/events/',
+  '/api/constitution/',
+  '/api/health/',
+  '/api/get-token/',
+  '/api/auth/stk/request/',
+  '/api/auth/stk/status/',
+  '/api/auth/mpesa/authenticate/',
+];
+
+const isPublicEndpoint = (url) => {
+  if (!url) return false;
+  return PUBLIC_ENDPOINTS.some(endpoint => url.includes(endpoint));
+};
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token');
-  if (token) {
+  // Only add token if it exists and the endpoint is NOT public
+  if (token && !isPublicEndpoint(config.url)) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
+// Response interceptor for token refresh
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // If it's a public endpoint, don't retry
+    if (isPublicEndpoint(originalRequest.url)) {
+      return Promise.reject(error);
+    }
+    
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (refreshToken) {
+        try {
+          const response = await api.post('/api/auth/refresh/', { refresh: refreshToken });
+          localStorage.setItem('access_token', response.data.access);
+          originalRequest.headers.Authorization = `Bearer ${response.data.access}`;
+          return api(originalRequest);
+        } catch (refreshError) {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          window.location.href = '/login';
+          return Promise.reject(refreshError);
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // ============ AUTHENTICATION ============
 export const getToken = (phone_number) => 
   api.post('/api/get-token/', { phone_number });
 
-// src/services/api.js - add this function
 export const waitForPayment = (checkout_request_id, phone_number) => 
   api.post('/api/auth/stk/wait/', { checkout_request_id, phone_number });
 
