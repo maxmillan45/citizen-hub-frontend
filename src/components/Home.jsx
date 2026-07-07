@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
@@ -141,7 +140,6 @@ function Home({ user: propUser }) {
     try {
       const response = await getHistoryFacts();
       
-      // Fix: Extract results array from the response
       let factsArray = [];
       if (response && response.data) {
         const data = response.data;
@@ -267,13 +265,13 @@ function Home({ user: propUser }) {
               <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
                 {user ? (
                   <>
-                    <Link to="/constitution" className="btn-primary" style={{ backgroundColor: 'white', color: '#006B3F' }}>Explore Constitution</Link>
-                    <Link to="/chatbot" className="btn-outline" style={{ borderColor: 'white', color: 'white' }}>Ask Legal Assistant</Link>
+                    <Link to="/constitution" className="btn-primary" style={{ backgroundColor: 'white', color: '#006B3F', textDecoration: 'none' }}>Explore Constitution</Link>
+                    <Link to="/chatbot" className="btn-outline" style={{ borderColor: 'white', color: 'white', textDecoration: 'none' }}>Ask Legal Assistant</Link>
                   </>
                 ) : (
                   <>
-                    <Link to="/login" className="btn-primary" style={{ backgroundColor: 'white', color: '#006B3F' }}>Get Started Free</Link>
-                    <Link to="/constitution" className="btn-outline" style={{ borderColor: 'white', color: 'white' }}>Explore Constitution</Link>
+                    <Link to="/login" className="btn-primary" style={{ backgroundColor: 'white', color: '#006B3F', textDecoration: 'none' }}>Get Started Free</Link>
+                    <Link to="/constitution" className="btn-outline" style={{ borderColor: 'white', color: 'white', textDecoration: 'none' }}>Explore Constitution</Link>
                   </>
                 )}
               </div>
@@ -369,9 +367,9 @@ function Home({ user: propUser }) {
               <h3 style={{ fontSize: '20px', marginBottom: '12px' }}>Join Thousands of Citizens</h3>
               <p style={{ marginBottom: '24px', opacity: 0.9, fontSize: '13px' }}>Already using Citizen Hub Kenya to understand their rights</p>
               {user ? (
-                <Link to="/constitution" className="btn-primary" style={{ backgroundColor: 'white', color: '#006B3F' }}>Start Exploring</Link>
+                <Link to="/constitution" className="btn-primary" style={{ backgroundColor: 'white', color: '#006B3F', textDecoration: 'none' }}>Start Exploring</Link>
               ) : (
-                <Link to="/login" className="btn-primary" style={{ backgroundColor: 'white', color: '#006B3F' }}>Create Free Account</Link>
+                <Link to="/login" className="btn-primary" style={{ backgroundColor: 'white', color: '#006B3F', textDecoration: 'none' }}>Create Free Account</Link>
               )}
             </div>
           </div>
