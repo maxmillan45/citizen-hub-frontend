@@ -1,4 +1,3 @@
-// src/components/CompleteProfile.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { completeProfile, getProfile } from '../services/api';
@@ -36,17 +35,11 @@ function CompleteProfile() {
         language: formData.language
       };
       
-      console.log('Sending profile data:', payload);
-      
       const response = await completeProfile(payload);
-      console.log('Profile saved:', response.data);
-      
       setSuccess(true);
       
-      // Mark user as not new
       localStorage.setItem('is_new_user', 'false');
       
-      // Fetch updated user profile
       try {
         const profileResponse = await getProfile();
         if (profileResponse.data) {
