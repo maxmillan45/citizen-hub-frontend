@@ -46,7 +46,7 @@ const AppRedirects = ({ children }) => {
     // If user is not logged in and trying to access protected pages, redirect to login
     if (!token && path !== '/login' && path !== '/complete-profile') {
       // Allow public pages to be accessed without login
-      const publicPages = ['/', '/constitution', '/history', '/faq', '/mps', '/events', '/did-you-know', '/profile'];
+      const publicPages = ['/', '/constitution', '/history', '/faq', '/mps', '/events', '/did-you-know'];
       if (!publicPages.includes(path)) {
         navigate('/login');
       }
@@ -59,19 +59,54 @@ const AppRedirects = ({ children }) => {
 function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Clear test user session
+    const phoneNumber = localStorage.getItem('phone_number');
+    if (phoneNumber === '0705632334' || phoneNumber === '254705632334') {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('user_id');
+      localStorage.removeItem('phone_number');
+      localStorage.removeItem('is_new_user');
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+    
+    // Check valid session
     const token = localStorage.getItem('access_token');
     if (token) {
       const savedUser = localStorage.getItem('user');
       if (savedUser) {
         try {
-          setUser(JSON.parse(savedUser));
+          const parsedUser = JSON.parse(savedUser);
+          // Verify the user has a phone number
+          if (parsedUser && parsedUser.phone_number) {
+            setUser(parsedUser);
+          } else {
+            // Invalid user data, clear everything
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user');
+            setUser(null);
+          }
         } catch (e) {
           console.error('Failed to parse user:', e);
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('user');
+          setUser(null);
         }
+      } else {
+        // Token exists but no user data, clear token
+        localStorage.removeItem('access_token');
+        setUser(null);
       }
+    } else {
+      setUser(null);
     }
+    setLoading(false);
   }, []);
 
   const handleLogin = (userData) => {
@@ -91,6 +126,14 @@ function App() {
 
   const openSidebar = () => setIsSidebarOpen(true);
   const closeSidebar = () => setIsSidebarOpen(false);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <div className="loading-spinner"></div>
+      </div>
+    );
+  }
 
   return (
     <Router>
